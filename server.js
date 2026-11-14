@@ -286,7 +286,7 @@ io.on('connection', (socket) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n======================================================`);
-  console.log(` 🎧 Cruzo — Multi-Device Wireless Audio Matrix `);
+  console.log(` Cruzo — Multi-Device Wireless Audio Matrix `);
   console.log(`======================================================`);
   console.log(` Gateway Home:      http://localhost:${PORT}/`);
   console.log(` Host PC Console:   http://localhost:${PORT}/host`);

@@ -225,7 +225,7 @@ async function handleWebRtcOffer(data) {
 
     if (event.receiver && 'playoutDelayHint' in event.receiver) {
       event.receiver.playoutDelayHint = 0.02;
-      jitterBufferStatus.textContent = '⚡ Playout: 20ms';
+      jitterBufferStatus.textContent = 'Playout: 20ms';
     }
 
     // Ensure we always have a valid MediaStream object
@@ -455,13 +455,13 @@ async function requestScreenWakeLock() {
   if ('wakeLock' in navigator) {
     try {
       wakeLock = await navigator.wakeLock.request('screen');
-      wakeLockStatus.textContent = '🔋 WakeLock: Active';
+      wakeLockStatus.textContent = 'Keep-Alive: Active';
       wakeLock.addEventListener('release', () => {
-        wakeLockStatus.textContent = '🔋 WakeLock: Standby';
+        wakeLockStatus.textContent = 'Keep-Alive: Standby';
       });
     } catch (err) {
       console.log('WakeLock error:', err);
-      wakeLockStatus.textContent = '🔋 WakeLock: N/A';
+      wakeLockStatus.textContent = 'Keep-Alive: Offline';
     }
   }
 }

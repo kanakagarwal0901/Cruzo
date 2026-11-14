@@ -428,9 +428,9 @@ function playAudioTestChime() {
 
   startVisualizerLoop();
 
-  btnPlayTestChime.textContent = '🎶 Playing Chime...';
+  btnPlayTestChime.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg> Playing Chime...';
   setTimeout(() => {
-    btnPlayTestChime.textContent = '🔊 Play Test Sound';
+    btnPlayTestChime.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg> Play Test Chime';
   }, 900);
 }
 
@@ -459,7 +459,7 @@ function startClapperTest() {
 
 function triggerClapperPulse() {
   clapperFlashBox.classList.add('flash');
-  clapperFlashBox.textContent = '⚡ FLASH & BIP!';
+  clapperFlashBox.textContent = 'FLASH & PULSE';
   setTimeout(() => {
     clapperFlashBox.classList.remove('flash');
     clapperFlashBox.textContent = 'SYNC CLAPPER (RUNNING)';

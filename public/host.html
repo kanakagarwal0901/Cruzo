@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Cruzo Host — Wireless Audio Matrix</title>
   <link rel="stylesheet" href="/css/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 18v-6a9 9 0 0 1 18 0v6'/><path d='M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z'/></svg>">
 </head>
 <body>
 
@@ -86,12 +86,13 @@
             Stop Broadcast
           </button>
           <button id="btnPlayTestChime" class="btn btn-secondary" type="button" title="Plays a 3-note audio chime to immediately test phone sound">
-            🔊 Play Test Sound
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+            Play Test Chime
           </button>
         </div>
 
         <p style="font-size: 0.8rem; color: var(--text-tertiary); margin-bottom: 1.25rem;">
-          💡 When the browser prompt opens, choose <strong>Entire Screen</strong> (or your movie tab) and make sure to check <strong>"Also share system audio"</strong>.
+          Note: When the browser prompt opens, choose <strong>Entire Screen</strong> (or your movie tab) and ensure <strong>"Also share system audio"</strong> is checked.
         </p>
 
         <!-- Live Visualizer Canvas -->
@@ -280,7 +281,7 @@
 
         <!-- Pro-Tips Box -->
         <div class="guide-tip-box">
-          <strong>💡 Pro Tips:</strong>
+          <strong>Tips & Shortcuts:</strong>
           <ul style="margin: 0.5rem 0 0 1.25rem; padding: 0;">
             <li><strong>In VLC:</strong> Press <kbd>J</kbd> on the PC keyboard 3–4 times to shift audio -150ms ahead for the entire group.</li>
             <li><strong>iPhone Users:</strong> Ensure your physical side mute/silent switch is turned OFF.</li>
@@ -295,9 +296,10 @@
     </div>
   </div>
 
-  <!-- Load Socket.io, Guide, and Host Broadcast Logic -->
+  <!-- Load Socket.io, Guide, Glass Cursor, and Host Broadcast Logic -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="/js/guide.js"></script>
+  <script src="/js/cursor.js"></script>
   <script src="/js/host.js"></script>
 </body>
 </html>

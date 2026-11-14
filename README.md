@@ -1,35 +1,33 @@
-# 🎧 Cruzo — Multi-Device Local Wireless Audio Matrix
+# Cruzo — Multi-Device Local Wireless Audio Matrix
 
 > **One Screen. Five Friends. Zero Tangled Wires. Zero Internet Data.**  
 > Turn any smartphone into a low-latency wireless audio receiver for a single Host PC over Local Wi-Fi (LAN) using WebRTC UDP streaming.
 
 ---
 
-## 📖 Table of Contents
-1. [The Problem Statement](#-1-the-problem-statement)
-2. [How Cruzo Solves It](#-2-how-cruzo-solves-it)
-3. [Architectural Analysis & Tech Comparison](#-3-architectural-analysis--tech-comparison)
-4. [System Architecture & Data Flow](#-4-system-architecture--data-flow)
-5. [Solving the "Lip-Sync & Bluetooth Lag" Boss](#-5-solving-the-lip-sync--bluetooth-lag-boss)
-6. [Crucial Technical Gotchas & Bypasses](#-6-crucial-technical-gotchas--bypasses)
-7. [Step-by-Step Implementation Roadmap](#-7-step-by-step-implementation-roadmap)
-8. [Project Directory Structure](#-8-project-directory-structure)
-9. [Quick Start & Local Setup](#-9-quick-start--local-setup)
-10. [Usage & Calibration Guide](#-10-usage--calibration-guide)
-11. [Benchmarking & Alternatives](#-11-benchmarking--alternatives)
+## Table of Contents
+1. [The Problem Statement](#1-the-problem-statement)
+2. [How Cruzo Solves It](#2-how-cruzo-solves-it)
+3. [Architectural Analysis & Tech Comparison](#3-architectural-analysis--tech-comparison)
+4. [System Architecture & Data Flow](#4-system-architecture--data-flow)
+5. [Solving the "Lip-Sync & Bluetooth Lag" Boss](#5-solving-the-lip-sync--bluetooth-lag-boss)
+6. [Crucial Technical Gotchas & Bypasses](#6-crucial-technical-gotchas--bypasses)
+7. [Project Directory Structure](#7-project-directory-structure)
+8. [Quick Start & Local Setup](#8-quick-start--local-setup)
+9. [License](#9-license)
 
 ---
 
-## 🎯 1. The Problem Statement
+## 1. The Problem Statement
 
-Imagine a group of 5 friends wanting to watch a movie together on a single laptop/PC in a hostel room, dorm, or living room. Everyone wants to wear their own personal wireless earbuds or headphones for immersive audio without disturbing others.
+Imagine a group of 5 friends wanting to watch a movie together on a single laptop/PC in a hostel room, dorm, or living room. Everyone wants to wear their own personal wireless earbuds or headphones for immersive audio without disturbing others. 
 
 **The Hardware Limitation:**  
 Standard Bluetooth network cards on Windows/Linux/macOS laptops only support **one active A2DP (Advanced Audio Distribution Profile) stereo stream at a time**. Because of this, you cannot natively pair and stream audio to 5 pairs of Bluetooth earbuds simultaneously from one PC.
 
 ---
 
-## 💡 2. How Cruzo Solves It
+## 2. How Cruzo Solves It
 
 Instead of fighting the Host PC's Bluetooth hardware ceiling, **Cruzo** routes the PC's audio over a **Local Area Network (Wi-Fi / Mobile Hotspot)** directly to mobile browsers using **WebRTC (UDP)**.
 
@@ -40,7 +38,7 @@ Instead of fighting the Host PC's Bluetooth hardware ceiling, **Cruzo** routes t
 
 ---
 
-## ⚖️ 3. Architectural Analysis & Tech Comparison
+## 3. Architectural Analysis & Tech Comparison
 
 | Architecture Approach | End-to-End Network Latency | Audio Quality | Setup Friction | Lip-Sync Viability |
 | :--- | :--- | :--- | :--- | :--- |
@@ -53,7 +51,7 @@ WebRTC transports media over **UDP (User Datagram Protocol)**. In a 2-hour movie
 
 ---
 
-## 🏗️ 4. System Architecture & Data Flow
+## 4. System Architecture & Data Flow
 
 ```text
 [Host PC: Movie Playing on Screen] 
@@ -81,34 +79,33 @@ WebRTC transports media over **UDP (User Datagram Protocol)**. In a 2-hour movie
 
 ---
 
-## ⏱️ 5. Solving the "Lip-Sync & Bluetooth Lag" Boss
+## 5. Solving the "Lip-Sync & Bluetooth Lag" Boss
 
 1. **Host-Side Visual Delay (Compensation for All Bluetooth Users):**
-   * **Built-in Cruzo Web Player:** If playing a local `.mp4`/`.mkv` inside the Cruzo Host web dashboard, a **Visual Delay Slider** offsets the `<video>` element relative to the captured audio track.
    * **External Media Players (VLC / MPV):** If watching on VLC Media Player, the host presses `J` or `K` on the keyboard to shift the audio track by `-150ms` to `-200ms`, aligning the actors' lips on the laptop screen with everyone's Bluetooth earbuds.
 
 2. **Client-Side Per-Device Micro-Calibration (`DelayNode`):**
-   Each mobile client passes its incoming WebRTC audio stream through a Web Audio API `DelayNode`, giving every user a personal **0ms to +400ms Audio Sync Slider** on their phone screen with preset buttons for Wired, AirPods, Standard Bluetooth, and High-Latency earphones.
+   Each mobile client passes its incoming WebRTC audio stream through a Web Audio API `DelayNode`, giving every user a personal **0ms to +400ms Audio Sync Slider** on their phone screen with presets for Wired, Low-Lag, Earbuds, and Wireless earphones.
 
 3. **Sync Clapper Pulse (Bip & Flash Calibration):**
    Cruzo includes a built-in sync clapper tool that flashes the screen and sends a synchronized audio beep every 2 seconds, allowing everyone in the room to dial in their personal millisecond delay instantly.
 
 ---
 
-## 🛡️ 6. Crucial Technical Gotchas & Bypasses
+## 6. Crucial Technical Gotchas & Bypasses
 
 1. **The "Underwater Movie Audio" Trap (DSP Voice Filters):**
-   * Cruzo disables `echoCancellation`, `noiseSuppression`, and `autoGainControl` during audio capture, and mutates the WebRTC **Session Description Protocol (SDP)** payload to force **48kHz Stereo Opus at 256kbps Constant Bitrate (CBR)**.
+   Cruzo disables `echoCancellation`, `noiseSuppression`, and `autoGainControl` during audio capture, and mutates the WebRTC **Session Description Protocol (SDP)** payload to force **48kHz Stereo Opus at 256kbps Constant Bitrate (CBR)**.
 2. **Chrome's HTTPS Restriction on `getDisplayMedia()`:**
-   * The Host opens the broadcaster dashboard strictly via `http://localhost:3000/host` (which Chrome treats as a secure context), while mobile listeners connect via `http://192.168.x.x:3000/listen` (receiving WebRTC audio does not require `getDisplayMedia`, so plain HTTP works seamlessly without SSL certificate warnings).
+   The Host opens the broadcaster dashboard strictly via `http://localhost:3000/host` (which Chrome treats as a secure context), while mobile listeners connect via `http://192.168.x.x:3000/listen` (receiving WebRTC audio does not require `getDisplayMedia`, so plain HTTP works seamlessly without SSL certificate warnings).
 3. **Mobile Browser Autoplay Policies:**
-   * The mobile UI features a prominent **"Tap to Connect & Unmute"** button that initializes both the `AudioContext` and `.play()` inside a single click handler.
-4. **Phone Screen-Lock Background Kill-Switch:**
-   * Cruzo pipes the WebRTC stream through an HTML5 `<audio>` element registered with the **Navigator MediaSession API** alongside a continuous silent loop audio element and the **Screen Wake Lock API** (`navigator.wakeLock.request('screen')`).
+   The mobile UI features a clean **"Connect Audio"** button that initializes both the `AudioContext` and `.play()` inside a single click handler.
+4. **Phone Screen-Lock Background Persistence:**
+   Cruzo pipes the WebRTC stream through an HTML5 `<audio>` element registered with the **Navigator MediaSession API** alongside a continuous silent loop audio element and the **Screen Wake Lock API**.
 
 ---
 
-## 📂 8. Project Directory Structure
+## 7. Project Directory Structure
 
 ```text
 cruzo/
@@ -116,39 +113,42 @@ cruzo/
 ├── server.js                 # Express HTTP server, LAN IP detector & Socket.io signaling
 ├── public/
 │   ├── css/
-│   │   └── style.css         # Obsidian Dark UI with Emerald/Sapphire accents
+│   │   └── style.css         # Apple minimalist frosted glass design system (Dark & Light)
 │   ├── js/
 │   │   ├── host.js           # Host WebRTC broadcaster, SDP stereo hack & telemetry
-│   │   └── listen.js         # Mobile WebRTC receiver, playoutDelayHint & DelayNode
+│   │   ├── listen.js         # Mobile WebRTC receiver, playoutDelayHint & DelayNode
+│   │   ├── cursor.js         # Smooth Apple frosted glass cursor animation
+│   │   └── guide.js          # Modal guide controller with deep linking (?guide=1)
 │   ├── assets/
 │   │   └── silent.mp3        # 1-second loop for iOS/Android MediaSession keep-alive
-│   ├── host.html             # Host PC Dashboard (Run on http://localhost:3000/host)
-│   └── listen.html           # Mobile Receiver App (Opened via QR code on phones)
+│   ├── index.html            # Gateway Home Page (Host vs Join)
+│   ├── host.html             # Host PC Audio Console (Run on http://localhost:3000/host)
+│   └── listen.html           # De-cluttered Mobile Receiver (Opened via QR code on phones)
 └── README.md                 # Project Documentation & Architecture Blueprint
 ```
 
 ---
 
-## 🚀 9. Quick Start & Local Setup
+## 8. Quick Start & Local Setup
 
 ### 1. Start the Server
 ```bash
 node server.js
 ```
 
-### 2. Launch Host Dashboard
+### 2. Launch Gateway or Host Console
 On the Host PC, open Chrome, Edge, or Brave:
 ```text
-http://localhost:3000/host
+http://localhost:3000/
 ```
-Click **"Start Audio Broadcast"**, select your movie player window or tab, and make sure **"Also share system audio"** is checked.
+Click **"Host Broadcast"**, click **"Start Audio Broadcast"**, select your movie player window or tab, and make sure **"Also share system audio"** is checked.
 
 ### 3. Connect Smartphones
 * Connect smartphones and Host PC to the same Wi-Fi router or mobile hotspot.
 * Friends scan the **QR Code** on the Host screen with their smartphone camera (or browse to `http://<HOST_IP>:3000/listen`).
-* Tap **"Tap to Unmute Audio"** on each phone to start receiving high-fidelity stereo audio!
+* Tap **"Connect Audio"** on each phone to start receiving high-fidelity stereo audio!
 
 ---
 
-## 📜 License
+## 9. License
 Distributed under the MIT License.
