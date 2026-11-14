@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Cruzo Listener — Wireless Audio Receiver</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="app-header">
+    <div class="brand-wrapper">
+      <div class="brand-logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+        </svg>
+      </div>
+      <div>
+        <span class="brand-title">Cruzo</span>
+        <span class="brand-subtitle">Receiver</span>
+      </div>
+    </div>
+
+    <div class="header-meta">
+      <div id="clientStatusBadge" class="status-badge">
+        <span class="status-dot"></span>
+        <span id="clientStatusText">CONNECTING</span>
+      </div>
+      <div class="status-badge mono text-emerald" style="font-size: 0.725rem;">
+        <span id="clientPingText">-- ms</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Receiver Container -->
+  <main class="container" style="max-width: 580px; padding: 1.25rem 1rem;">
+    <div style="display: flex; flex-direction: column; gap: 1.25rem;">
+
+      <!-- Tap to Connect & Unmute Hero Box -->
+      <section id="unmuteHeroSection">
+        <button id="btnUnmuteHero" class="btn-hero-unmute" type="button">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          </svg>
+          <span>TAP TO UNMUTE AUDIO</span>
+          <span class="subtext">Initializes low-latency stereo receiver</span>
+        </button>
+      </section>
+
+      <!-- Active Streaming Monitor (Appears once unmuted) -->
+      <section id="streamingActiveCard" class="card" style="display: none;">
+        <div class="card-header">
+          <h2 class="card-title text-emerald">
+            <span class="status-dot" style="background: var(--emerald); box-shadow: 0 0 8px var(--emerald);"></span>
+            Live Audio Stream Active
+          </h2>
+          <span class="status-badge mono" style="font-size: 0.7rem;">48kHz STEREO</span>
+        </div>
+
+        <!-- Live Visualizer -->
+        <div class="visualizer-container" style="height: 70px;">
+          <span class="visualizer-overlay">Incoming Stream Spectrum</span>
+          <canvas id="clientVisualizerCanvas" class="visualizer-canvas"></canvas>
+        </div>
+      </section>
+
+      <!-- Personal Lip-Sync Calibration Station -->
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            Personal Bluetooth Sync
+          </h2>
+          <span id="delayBadgeValue" class="slider-value mono">0 ms</span>
+        </div>
+
+        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
+          Tune this slider to align audio with the laptop movie screen based on your earphones:
+        </p>
+
+        <!-- Main Slider -->
+        <div class="slider-group" style="margin: 0.75rem 0;">
+          <input type="range" id="syncDelaySlider" min="0" max="400" step="5" value="0">
+        </div>
+
+        <!-- Fine Tuning Micro Buttons -->
+        <div class="fine-tune-row">
+          <button class="btn-fine" type="button" data-delta="-20">-20ms</button>
+          <button class="btn-fine" type="button" data-delta="-5">-5ms</button>
+          <button class="btn-fine" type="button" data-delta="5">+5ms</button>
+          <button class="btn-fine" type="button" data-delta="20">+20ms</button>
+        </div>
+
+        <!-- Quick Presets -->
+        <div class="preset-row">
+          <button class="btn-preset active" type="button" data-preset="0">
+            ⚡ Wired (0ms)
+          </button>
+          <button class="btn-preset" type="button" data-preset="120">
+            🎧 Low-Lag (120ms)
+          </button>
+          <button class="btn-preset" type="button" data-preset="180">
+            🎵 BT Buds (180ms)
+          </button>
+          <button class="btn-preset" type="button" data-preset="250">
+            📶 High-Lag (250ms)
+          </button>
+        </div>
+      </section>
+
+      <!-- Volume & Output Controls -->
+      <section class="card">
+        <div class="card-header">
+          <h2 class="card-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
+            Volume & Audio Boost
+          </h2>
+          <span id="volumePercentDisplay" class="slider-value mono">100%</span>
+        </div>
+
+        <div class="slider-group" style="margin: 0.5rem 0 0.75rem 0;">
+          <input type="range" id="volumeSlider" min="0" max="150" step="1" value="100">
+        </div>
+
+        <div style="display: flex; gap: 0.75rem;">
+          <button id="btnMuteToggle" class="btn btn-secondary" style="flex: 1;" type="button">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"></line><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>
+            Mute
+          </button>
+          <button id="btnReconnect" class="btn btn-secondary" type="button" title="Reconnect stream">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+          </button>
+        </div>
+      </section>
+
+      <!-- Background Status & Diagnostics -->
+      <section style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0.25rem; font-size: 0.725rem; color: var(--text-muted);">
+        <span id="wakeLockStatus">🔋 WakeLock: Standby</span>
+        <span id="jitterBufferStatus">⚡ Playout Hint: 20ms</span>
+        <span id="iceStateStatus">ICE: Init</span>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Background Keep-Alive Audio Element (Silent Loop for iOS/Android background persistence) -->
+  <audio id="hiddenSilentAudio" src="/assets/silent.mp3" loop playsinline preload="auto" style="display: none;"></audio>
+
+  <!-- Load Socket.io and Client Receiver Logic -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/listen.js"></script>
+</body>
+</html>
