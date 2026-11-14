@@ -101,8 +101,7 @@ function initSocket() {
   });
 
   socket.on('broadcaster-disconnected', () => {
-    updateClientStatus('HOST OFFLINE', false);
-    closePeerConnection();
+    handleHostDisconnected('Host ended broadcast');
   });
 
   // Received WebRTC Offer from Host
@@ -147,14 +146,17 @@ function initSocket() {
 
   // Host kicked this client
   socket.on('kicked', () => {
-    alert('You have been disconnected by the Host.');
-    closePeerConnection();
-    updateClientStatus('DISCONNECTED', false);
+    handleHostDisconnected('Disconnected by Host');
   });
 
   socket.on('disconnect', () => {
     updateClientStatus('OFFLINE', false);
     if (pingInterval) clearInterval(pingInterval);
+    setTimeout(() => {
+      if (!socket || !socket.connected) {
+        handleHostDisconnected('Connection lost with Host PC');
+      }
+    }, 2500);
   });
 }
 
@@ -216,6 +218,8 @@ async function handleWebRtcOffer(data) {
     console.log(`[Cruzo] Connection State: ${state}`);
     if (state === 'connected') {
       updateClientStatus('STREAMING', true);
+    } else if (state === 'failed' || state === 'closed') {
+      handleHostDisconnected('Audio stream disconnected');
     }
   };
 
@@ -587,6 +591,42 @@ function setupEventListeners() {
       remoteAudio.play().catch(() => {});
     }
   });
+
+  const btnLeaveRoom = document.getElementById('btnLeaveRoom');
+  if (btnLeaveRoom) {
+    btnLeaveRoom.addEventListener('click', () => {
+      handleHostDisconnected('Leaving room');
+    });
+  }
+}
+
+let isRedirectingHome = false;
+
+function handleHostDisconnected(reason = 'Disconnected from Host') {
+  if (isRedirectingHome) return;
+  isRedirectingHome = true;
+
+  console.log(`[Cruzo] ${reason}. Automatically returning to home...`);
+  updateClientStatus('DISCONNECTED', false);
+  closePeerConnection();
+
+  // Create clean Apple frosted glass toast notice
+  const toast = document.createElement('div');
+  toast.className = 'disconnection-toast';
+  toast.innerHTML = `
+    <div class="disconnection-toast-card">
+      <div class="status-dot" style="background: #ff453a; box-shadow: 0 0 10px rgba(255, 69, 58, 0.5);"></div>
+      <div>
+        <div style="font-weight: 600; font-size: 0.875rem; color: var(--text-primary);">${reason}</div>
+        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 1px;">Returning to home page...</div>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    window.location.href = '/?disconnected=1';
+  }, 950);
 }
 
 function updateClientStatus(text, isLive) {

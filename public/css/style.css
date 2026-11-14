@@ -1449,3 +1449,138 @@ input[type="range"]::-moz-range-thumb {
     padding-right: 1.25rem;
   }
 }
+
+/* ==========================================================================
+   In-App Mobile QR Scanner & Disconnection Toast
+   ========================================================================== */
+
+.scanner-card {
+  max-width: 480px;
+}
+
+.scanner-body {
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.scanner-viewport-wrap {
+  width: 100%;
+  max-width: 340px;
+  aspect-ratio: 1 / 1;
+  background: #000000;
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.scanner-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.scanner-reticle {
+  position: absolute;
+  inset: 22px;
+  pointer-events: none;
+  transition: all var(--transition-fast);
+}
+
+.scanner-corner {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  border: 3px solid #ffffff;
+  border-radius: 3px;
+  transition: border-color var(--transition-fast);
+}
+
+.corner-tl { top: 0; left: 0; border-right: none; border-bottom: none; }
+.corner-tr { top: 0; right: 0; border-left: none; border-bottom: none; }
+.corner-bl { bottom: 0; left: 0; border-right: none; border-top: none; }
+.corner-br { bottom: 0; right: 0; border-left: none; border-top: none; }
+
+.scanner-laser {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #ffffff, transparent);
+  box-shadow: 0 0 12px #ffffff;
+  animation: laser-sweep 2.2s infinite ease-in-out;
+  transition: all var(--transition-fast);
+}
+
+@keyframes laser-sweep {
+  0% { top: 6%; opacity: 0.2; }
+  50% { top: 94%; opacity: 1; }
+  100% { top: 6%; opacity: 0.2; }
+}
+
+.scanner-reticle.detected .scanner-corner {
+  border-color: #30d158;
+}
+
+.scanner-reticle.detected .scanner-laser {
+  background: #30d158;
+  box-shadow: 0 0 16px #30d158;
+}
+
+.scanner-perm-notice {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-surface-elevated);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.scanner-tip-text {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+  margin-top: 1rem;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* Disconnection Toast */
+.disconnection-toast {
+  position: fixed;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  animation: toast-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes toast-slide-in {
+  from { opacity: 0; transform: translate(-50%, -16px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.disconnection-toast-card {
+  background: var(--bg-surface-elevated);
+  backdrop-filter: var(--blur-glass);
+  -webkit-backdrop-filter: var(--blur-glass);
+  border: 1px solid var(--border-highlight);
+  border-radius: var(--radius-full);
+  padding: 0.7rem 1.35rem;
+  box-shadow: var(--shadow-glass);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
