@@ -942,78 +942,88 @@ input[type="range"]::-moz-range-thumb {
    Apple Frosted Glass Cursor & Uncluttered Mobile Receiver Deck
    ========================================================================== */
 
-/* 1. Glass UI Cursor (Desktop Fine Pointer Only) */
-@media (hover: hover) and (pointer: fine) {
-  .glass-cursor-dot {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 6px;
-    height: 6px;
-    background: var(--text-primary);
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 100000;
-    transform: translate(-50%, -50%);
-    transition: opacity 0.2s ease;
-  }
-
-  .glass-cursor-ring {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 1px solid var(--border-highlight);
-    background: rgba(255, 255, 255, 0.08);
-    backdrop-filter: blur(8px) saturate(180%);
-    -webkit-backdrop-filter: blur(8px) saturate(180%);
-    pointer-events: none;
-    z-index: 99999;
-    transform: translate(-50%, -50%);
-    transition: width 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-                height 0.22s cubic-bezier(0.16, 1, 0.3, 1),
-                border-color 0.2s ease,
-                background-color 0.2s ease,
-                box-shadow 0.2s ease,
-                opacity 0.2s ease;
-  }
-
-  [data-theme="light"] .glass-cursor-ring {
-    background: rgba(0, 0, 0, 0.05);
-    border-color: rgba(0, 0, 0, 0.22);
-  }
-
-  .glass-cursor-ring.hovering {
-    width: 52px;
-    height: 52px;
-    background: rgba(255, 255, 255, 0.16);
-    border-color: var(--text-primary);
-    box-shadow: 0 0 24px rgba(255, 255, 255, 0.18);
-  }
-
-  [data-theme="light"] .glass-cursor-ring.hovering {
-    background: rgba(0, 0, 0, 0.08);
-    border-color: #000000;
-    box-shadow: 0 0 24px rgba(0, 0, 0, 0.1);
-  }
-
-  .glass-cursor-ring.active {
-    width: 26px;
-    height: 26px;
-  }
-
-  .glass-cursor-hidden {
-    opacity: 0 !important;
-  }
+/* 1. Frosted Glass Box Hover Interaction (Specular Spotlight on Normal Cursor) */
+.card,
+.gateway-card,
+.acoustic-hero-card,
+.audio-deck,
+.modal-card,
+.clapper-box,
+.scanner-card,
+.guide-step {
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--transition-normal), border-color var(--transition-fast), box-shadow var(--transition-normal);
 }
 
-@media (hover: none) or (pointer: coarse) {
-  .glass-cursor-dot,
-  .glass-cursor-ring {
-    display: none !important;
-  }
+/* Frosted glass dynamic spotlight following normal cursor */
+.card::before,
+.gateway-card::before,
+.acoustic-hero-card::before,
+.audio-deck::before,
+.modal-card::before,
+.clapper-box::before,
+.scanner-card::before,
+.guide-step::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(450px circle at var(--mouse-x, -600px) var(--mouse-y, -600px), rgba(255, 255, 255, 0.12), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+
+[data-theme="light"] .card::before,
+[data-theme="light"] .gateway-card::before,
+[data-theme="light"] .acoustic-hero-card::before,
+[data-theme="light"] .audio-deck::before,
+[data-theme="light"] .modal-card::before,
+[data-theme="light"] .clapper-box::before,
+[data-theme="light"] .scanner-card::before,
+[data-theme="light"] .guide-step::before {
+  background: radial-gradient(450px circle at var(--mouse-x, -600px) var(--mouse-y, -600px), rgba(0, 0, 0, 0.05), transparent 70%);
+}
+
+.card:hover::before,
+.gateway-card:hover::before,
+.acoustic-hero-card:hover::before,
+.audio-deck:hover::before,
+.modal-card:hover::before,
+.clapper-box:hover::before,
+.scanner-card:hover::before,
+.guide-step:hover::before {
+  opacity: 1;
+}
+
+/* Ensure contents stay crisply interactive above the spotlight */
+.card > *,
+.gateway-card > *,
+.acoustic-hero-card > *,
+.audio-deck > *,
+.modal-card > *,
+.clapper-box > *,
+.scanner-card > *,
+.guide-step > * {
+  position: relative;
+  z-index: 2;
+}
+
+/* Enhanced Glass hover elevation on cards */
+.card:hover,
+.gateway-card:hover,
+.acoustic-hero-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-highlight);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme="light"] .card:hover,
+[data-theme="light"] .gateway-card:hover,
+[data-theme="light"] .acoustic-hero-card:hover {
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
 }
 
 /* 2. De-cluttered Mobile Receiver UI */

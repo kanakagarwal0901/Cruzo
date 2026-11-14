@@ -117,7 +117,9 @@ cruzo/
 │   ├── js/
 │   │   ├── host.js           # Host WebRTC broadcaster, SDP stereo hack & telemetry
 │   │   ├── listen.js         # Mobile WebRTC receiver, playoutDelayHint & DelayNode
-│   │   ├── cursor.js         # Smooth Apple frosted glass cursor animation
+│   │   ├── glass-hover.js    # Frosted glass specular hover spotlight on boxes
+│   │   ├── scanner.js        # In-app mobile camera QR scanner (BarcodeDetector & jsQR)
+│   │   ├── jsQR.js           # Offline standalone QR decoder engine
 │   │   └── guide.js          # Modal guide controller with deep linking (?guide=1)
 │   ├── assets/
 │   │   └── silent.mp3        # 1-second loop for iOS/Android MediaSession keep-alive
