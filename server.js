@@ -104,6 +104,11 @@ app.get('/listen', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'listen.html'));
 });
 
+// Guide route: Opens Gateway with How-to-Use guide modal active
+app.get('/guide', (req, res) => {
+  res.redirect('/?guide=1');
+});
+
 // API route to provide connection metadata and minimalist QR code
 app.get('/api/info', async (req, res) => {
   try {
