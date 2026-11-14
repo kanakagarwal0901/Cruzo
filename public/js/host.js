@@ -1,7 +1,7 @@
 /**
  * Cruzo — Host PC Broadcaster Logic
- * Manages Master Web Audio Bus, WebRTC Star Topology, Stereo Opus SDP,
- * Real Frame-Delayed Cinema Video Engine, and Sync Clapper Matrix.
+ * Minimalist System Audio Broadcast Engine, WebRTC Star Topology,
+ * Stereo Opus SDP Hack, and Audio Calibration Suite.
  */
 
 // Global State
@@ -23,14 +23,6 @@ const pendingIceCandidatesMap = new Map();
 let clapperInterval = null;
 let isClapperRunning = false;
 
-// Cinema Player State
-let cinemaAudioSource = null;
-let cinemaVideoDelayMs = 0;
-let cinemaCanvasCtx = null;
-let cinemaFrameQueue = [];
-let cinemaDelayRafId = null;
-let isScrubbing = false;
-
 // DOM Elements
 const hostStatusBadge = document.getElementById('hostStatusBadge');
 const hostStatusText = document.getElementById('hostStatusText');
@@ -48,26 +40,6 @@ const hostVisualizerCanvas = document.getElementById('hostVisualizerCanvas');
 const btnToggleClapper = document.getElementById('btnToggleClapper');
 const clapperFlashBox = document.getElementById('clapperFlashBox');
 
-// Tab Switching
-const tabDesktopBtn = document.getElementById('tabDesktopBtn');
-const tabCinemaBtn = document.getElementById('tabCinemaBtn');
-const panelDesktop = document.getElementById('panelDesktop');
-const panelCinema = document.getElementById('panelCinema');
-
-// Cinema Player Elements
-const cinemaDropzone = document.getElementById('cinemaDropzone');
-const cinemaFileInput = document.getElementById('cinemaFileInput');
-const cinemaPlayerWrapper = document.getElementById('cinemaPlayerWrapper');
-const localCinemaVideo = document.getElementById('localCinemaVideo');
-const cinemaDisplayCanvas = document.getElementById('cinemaDisplayCanvas');
-const btnCinemaPlayPause = document.getElementById('btnCinemaPlayPause');
-const cinemaPlayIcon = document.getElementById('cinemaPlayIcon');
-const cinemaSeekBar = document.getElementById('cinemaSeekBar');
-const cinemaTimeDisplay = document.getElementById('cinemaTimeDisplay');
-const btnCinemaFullscreen = document.getElementById('btnCinemaFullscreen');
-const cinemaDelaySlider = document.getElementById('cinemaDelaySlider');
-const cinemaDelayValue = document.getElementById('cinemaDelayValue');
-
 // Initialize on Load
 document.addEventListener('DOMContentLoaded', () => {
   initAudioMasterBus();
@@ -78,7 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', () => setupCanvas(hostVisualizerCanvas));
 });
 
-// Resume AudioContext on first interaction
+// Resume AudioContext on first user interaction
 document.addEventListener('click', () => {
   if (audioContext && audioContext.state === 'suspended') {
     audioContext.resume();
@@ -99,10 +71,10 @@ function initAudioMasterBus() {
     masterDest = audioContext.createMediaStreamDestination();
     broadcastStream = masterDest.stream;
 
-    // Attach silent oscillator to keep broadcast audio track alive continuously
+    // Attach inaudible carrier oscillator to keep stream active
     const silenceOsc = audioContext.createOscillator();
     const silenceGain = audioContext.createGain();
-    silenceGain.gain.value = 0.00001; // Inaudible keep-alive carrier
+    silenceGain.gain.value = 0.00001;
     silenceOsc.connect(silenceGain);
     silenceGain.connect(masterDest);
     silenceOsc.start();
@@ -162,14 +134,12 @@ function initSocket() {
     }
   });
 
-  // Watcher joined room
   socket.on('watcher-joined', async (watcherInfo) => {
     console.log('[Cruzo] Watcher joined:', watcherInfo);
     addPeerToUI(watcherInfo);
     await createPeerConnectionForWatcher(watcherInfo.id);
   });
 
-  // Watcher WebRTC Answer SDP
   socket.on('answer', async (data) => {
     const pc = peerConnections.get(data.watcherId);
     if (pc && data.sdp) {
@@ -177,7 +147,6 @@ function initSocket() {
         await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
         console.log(`[Cruzo] Remote description set for watcher ${data.watcherId}`);
 
-        // Drain any queued ICE candidates for this watcher
         if (pendingIceCandidatesMap.has(data.watcherId)) {
           const queue = pendingIceCandidatesMap.get(data.watcherId);
           while (queue.length > 0) {
@@ -195,7 +164,6 @@ function initSocket() {
     }
   });
 
-  // Watcher ICE Candidate
   socket.on('ice-candidate', async (data) => {
     const pc = peerConnections.get(data.senderId);
     if (pc && data.candidate) {
@@ -214,12 +182,10 @@ function initSocket() {
     }
   });
 
-  // Watcher disconnected
   socket.on('watcher-left', (data) => {
     removePeer(data.watcherId);
   });
 
-  // Watcher updated its personal telemetry
   socket.on('watcher-telemetry-update', (data) => {
     updatePeerTelemetry(data.watcherId, data.rtt, data.delayOffset);
   });
@@ -254,13 +220,11 @@ async function createPeerConnectionForWatcher(watcherId) {
   const pc = new RTCPeerConnection(rtcConfig);
   peerConnections.set(watcherId, pc);
 
-  // Attach active audio track (native system audio or master bus)
   const trackToStream = getActiveBroadcastTrack();
   if (trackToStream) {
     pc.addTrack(trackToStream, broadcastStream);
   }
 
-  // Handle local ICE candidates
   pc.onicecandidate = (event) => {
     if (event.candidate) {
       socket.emit('ice-candidate', {
@@ -298,10 +262,6 @@ async function createPeerConnectionForWatcher(watcherId) {
   }
 }
 
-/**
- * Bulletproof Opus Stereo & High-Bitrate SDP Transformer
- * Compliant with RFC 7587 for 48kHz Stereo Opus @ 256kbps CBR
- */
 function enableStereoOpus(sdp) {
   const opusPtMatch = sdp.match(/a=rtpmap:(\d+)\s+opus\/48000\/2/i);
   const pt = opusPtMatch ? opusPtMatch[1] : '111';
@@ -340,7 +300,7 @@ function enableStereoOpus(sdp) {
 }
 
 // -----------------------------------------------------------------------------
-// 5. Audio Capture — Desktop Screen / Tab Audio
+// 5. Audio Capture — Desktop Screen / System Audio
 // -----------------------------------------------------------------------------
 async function startDesktopBroadcast() {
   initAudioMasterBus();
@@ -372,17 +332,15 @@ async function startDesktopBroadcast() {
       return;
     }
 
-    // Stop video track so only audio is transmitted
     desktopRawStream.getVideoTracks().forEach(t => t.stop());
 
-    // Connect to Master Web Audio Bus for spectrum analyser
     if (desktopSourceNode) {
       desktopSourceNode.disconnect();
     }
     desktopSourceNode = audioContext.createMediaStreamSource(desktopRawStream);
     desktopSourceNode.connect(analyserNode);
 
-    // Swap the active audio track on all connected peers to the raw hardware audio track
+    // Hot-swap native WASAPI system audio track onto all active peer connections
     const newTrack = audioTracks[0];
     for (const [id, pc] of peerConnections.entries()) {
       const senders = pc.getSenders();
@@ -399,7 +357,7 @@ async function startDesktopBroadcast() {
     };
 
     startVisualizerLoop();
-    updateHostStatus('BROADCASTING (DESKTOP)', true);
+    updateHostStatus('BROADCASTING', true);
     btnStartBroadcast.disabled = true;
     btnStopBroadcast.disabled = false;
   } catch (err) {
@@ -420,7 +378,6 @@ function stopDesktopBroadcast() {
     desktopRawStream = null;
   }
 
-  // Swap peers back to master bus track
   const fallbackTrack = broadcastStream.getAudioTracks()[0];
   if (fallbackTrack) {
     for (const pc of peerConnections.values()) {
@@ -438,170 +395,7 @@ function stopDesktopBroadcast() {
 }
 
 // -----------------------------------------------------------------------------
-// 6. Built-in Cinema Player with Real Frame-Delayed Canvas Engine
-// -----------------------------------------------------------------------------
-function setupCinemaPlayer() {
-  cinemaCanvasCtx = cinemaDisplayCanvas.getContext('2d', { alpha: false });
-
-  cinemaDropzone.addEventListener('click', () => cinemaFileInput.click());
-
-  cinemaDropzone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    cinemaDropzone.classList.add('dragover');
-  });
-
-  cinemaDropzone.addEventListener('dragleave', () => {
-    cinemaDropzone.classList.remove('dragover');
-  });
-
-  cinemaDropzone.addEventListener('drop', (e) => {
-    e.preventDefault();
-    cinemaDropzone.classList.remove('dragover');
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      loadCinemaFile(e.dataTransfer.files[0]);
-    }
-  });
-
-  cinemaFileInput.addEventListener('change', (e) => {
-    if (e.target.files && e.target.files[0]) {
-      loadCinemaFile(e.target.files[0]);
-    }
-  });
-
-  cinemaDelaySlider.addEventListener('input', (e) => {
-    cinemaVideoDelayMs = parseInt(e.target.value, 10);
-    cinemaDelayValue.textContent = `${cinemaVideoDelayMs} ms`;
-  });
-
-  btnCinemaPlayPause.addEventListener('click', () => {
-    if (localCinemaVideo.paused) {
-      localCinemaVideo.play();
-    } else {
-      localCinemaVideo.pause();
-    }
-  });
-
-  localCinemaVideo.addEventListener('play', () => {
-    cinemaPlayIcon.innerHTML = `<rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect>`;
-    renderCinemaLoop();
-  });
-
-  localCinemaVideo.addEventListener('pause', () => {
-    cinemaPlayIcon.innerHTML = `<polygon points="5 3 19 12 5 21 5 3"></polygon>`;
-  });
-
-  localCinemaVideo.addEventListener('timeupdate', () => {
-    if (!isScrubbing && localCinemaVideo.duration) {
-      cinemaSeekBar.value = (localCinemaVideo.currentTime / localCinemaVideo.duration) * 100;
-      cinemaTimeDisplay.textContent = `${formatTime(localCinemaVideo.currentTime)} / ${formatTime(localCinemaVideo.duration)}`;
-    }
-  });
-
-  cinemaSeekBar.addEventListener('mousedown', () => { isScrubbing = true; });
-  cinemaSeekBar.addEventListener('touchstart', () => { isScrubbing = true; });
-
-  cinemaSeekBar.addEventListener('input', () => {
-    if (localCinemaVideo.duration) {
-      const targetTime = (cinemaSeekBar.value / 100) * localCinemaVideo.duration;
-      cinemaTimeDisplay.textContent = `${formatTime(targetTime)} / ${formatTime(localCinemaVideo.duration)}`;
-    }
-  });
-
-  cinemaSeekBar.addEventListener('change', () => {
-    if (localCinemaVideo.duration) {
-      localCinemaVideo.currentTime = (cinemaSeekBar.value / 100) * localCinemaVideo.duration;
-      purgeCinemaFrameQueue();
-    }
-    isScrubbing = false;
-  });
-
-  btnCinemaFullscreen.addEventListener('click', () => {
-    if (!document.fullscreenElement) {
-      cinemaPlayerWrapper.requestFullscreen().catch(() => {});
-    } else {
-      document.exitFullscreen().catch(() => {});
-    }
-  });
-}
-
-function loadCinemaFile(file) {
-  initAudioMasterBus();
-  if (audioContext.state === 'suspended') {
-    audioContext.resume();
-  }
-
-  const fileUrl = URL.createObjectURL(file);
-  localCinemaVideo.src = fileUrl;
-  cinemaDropzone.style.display = 'none';
-  cinemaPlayerWrapper.style.display = 'block';
-
-  localCinemaVideo.onloadedmetadata = () => {
-    cinemaDisplayCanvas.width = localCinemaVideo.videoWidth || 1280;
-    cinemaDisplayCanvas.height = localCinemaVideo.videoHeight || 720;
-    cinemaTimeDisplay.textContent = `00:00 / ${formatTime(localCinemaVideo.duration)}`;
-
-    if (!cinemaAudioSource) {
-      cinemaAudioSource = audioContext.createMediaElementSource(localCinemaVideo);
-      cinemaAudioSource.connect(masterDest);
-      cinemaAudioSource.connect(analyserNode);
-      cinemaAudioSource.connect(audioContext.destination);
-    }
-
-    startVisualizerLoop();
-    updateHostStatus('BROADCASTING (CINEMA)', true);
-    localCinemaVideo.play().catch(e => console.log('Autoplay deferred:', e));
-  };
-}
-
-function renderCinemaLoop() {
-  if (localCinemaVideo.paused || localCinemaVideo.ended) return;
-
-  const now = performance.now();
-
-  if (cinemaVideoDelayMs <= 0) {
-    if (localCinemaVideo.videoWidth) {
-      cinemaCanvasCtx.drawImage(localCinemaVideo, 0, 0, cinemaDisplayCanvas.width, cinemaDisplayCanvas.height);
-    }
-  } else {
-    if (localCinemaVideo.videoWidth && localCinemaVideo.readyState >= 2) {
-      createImageBitmap(localCinemaVideo).then(bitmap => {
-        cinemaFrameQueue.push({
-          bitmap,
-          targetTime: performance.now() + cinemaVideoDelayMs
-        });
-      }).catch(() => {});
-    }
-
-    let frameToDraw = null;
-    while (cinemaFrameQueue.length > 0 && cinemaFrameQueue[0].targetTime <= now) {
-      if (frameToDraw) {
-        frameToDraw.bitmap.close();
-      }
-      frameToDraw = cinemaFrameQueue.shift();
-    }
-
-    if (frameToDraw) {
-      cinemaCanvasCtx.drawImage(frameToDraw.bitmap, 0, 0, cinemaDisplayCanvas.width, cinemaDisplayCanvas.height);
-      frameToDraw.bitmap.close();
-    }
-  }
-
-  if ('requestVideoFrameCallback' in localCinemaVideo) {
-    localCinemaVideo.requestVideoFrameCallback(renderCinemaLoop);
-  } else {
-    cinemaDelayRafId = requestAnimationFrame(renderCinemaLoop);
-  }
-}
-
-function purgeCinemaFrameQueue() {
-  cinemaFrameQueue.forEach(f => {
-    try { f.bitmap.close(); } catch (e) {}
-  });
-  cinemaFrameQueue = [];
-}
-
-// -----------------------------------------------------------------------------
-// 7. Audio Test Chime & Sync Clapper Matrix
+// 6. Audio Test Chime & Sync Clapper Matrix
 // -----------------------------------------------------------------------------
 function playAudioTestChime() {
   initAudioMasterBus();
@@ -609,7 +403,7 @@ function playAudioTestChime() {
     audioContext.resume();
   }
 
-  const notes = [523.25, 659.25, 783.99];
+  const notes = [523.25, 659.25, 783.99]; // C5, E5, G5
   const now = audioContext.currentTime;
 
   notes.forEach((freq, index) => {
@@ -709,13 +503,13 @@ function stopClapperTest() {
 }
 
 // -----------------------------------------------------------------------------
-// 8. Audio Visualizer Spectrum
+// 7. Minimalist Apple Monochrome Visualizer
 // -----------------------------------------------------------------------------
 function setupCanvas(canvas) {
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   canvas.width = (rect.width || 600) * dpr;
-  canvas.height = (rect.height || 90) * dpr;
+  canvas.height = (rect.height || 80) * dpr;
 }
 
 function startVisualizerLoop() {
@@ -732,16 +526,22 @@ function startVisualizerLoop() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
     const barWidth = (canvas.width / bufferLength) * 2.2;
     let x = 0;
 
     for (let i = 0; i < bufferLength; i++) {
       const barHeight = (dataArray[i] / 255) * canvas.height;
 
+      // Clean monochrome gradient (Grayscale Apple style)
       const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
-      gradient.addColorStop(0, '#0284c7');
-      gradient.addColorStop(0.5, '#10b981');
-      gradient.addColorStop(1, '#34d399');
+      if (isLight) {
+        gradient.addColorStop(0, 'rgba(0, 0, 0, 0.25)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0.85)');
+      } else {
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0.9)');
+      }
 
       ctx.fillStyle = gradient;
       ctx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);
@@ -754,7 +554,7 @@ function startVisualizerLoop() {
 }
 
 // -----------------------------------------------------------------------------
-// 9. Connected Devices UI & Telemetry Management
+// 8. Connected Devices UI & Telemetry Management
 // -----------------------------------------------------------------------------
 function addPeerToUI(watcherInfo) {
   noPeersNotice.style.display = 'none';
@@ -765,7 +565,7 @@ function addPeerToUI(watcherInfo) {
 
   const isIOS = /iPhone|iPad|iPod/i.test(watcherInfo.userAgent);
   const isAndroid = /Android/i.test(watcherInfo.userAgent);
-  const deviceType = isIOS ? 'Apple iOS' : isAndroid ? 'Android' : 'Mobile / PC';
+  const deviceType = isIOS ? 'Apple iPhone' : isAndroid ? 'Android' : 'Device';
 
   const card = document.createElement('div');
   card.id = `peer-${watcherInfo.id}`;
@@ -786,7 +586,7 @@ function addPeerToUI(watcherInfo) {
       <span class="telemetry-pill good" id="ping-${watcherInfo.id}">Ping: -- ms</span>
       <span class="telemetry-pill" id="sync-${watcherInfo.id}">Sync: 0ms</span>
       <span class="status-badge" id="state-${watcherInfo.id}" style="font-size: 0.65rem;">INIT</span>
-      <button class="btn-icon text-rose" title="Kick Device" onclick="kickWatcher('${watcherInfo.id}')">
+      <button class="btn-icon" title="Disconnect Device" onclick="kickWatcher('${watcherInfo.id}')" style="color: var(--text-tertiary);">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
     </div>
@@ -815,7 +615,7 @@ function updatePeerTelemetry(watcherId, rtt, delayOffset) {
   const pingEl = document.getElementById(`ping-${watcherId}`);
   if (pingEl && rtt !== undefined) {
     pingEl.textContent = `${rtt} ms`;
-    pingEl.className = `telemetry-pill ${rtt < 25 ? 'good' : rtt < 60 ? 'warn' : ''}`;
+    pingEl.className = `telemetry-pill ${rtt < 30 ? 'good' : ''}`;
   }
 
   const syncEl = document.getElementById(`sync-${watcherId}`);
@@ -835,10 +635,10 @@ function updatePeerStateBadge(watcherId, state) {
     badge.className = 'status-badge live';
     badge.style.fontSize = '0.65rem';
   } else if (normalized === 'checking') {
-    badge.className = 'status-badge text-amber';
+    badge.className = 'status-badge';
     badge.style.fontSize = '0.65rem';
   } else if (normalized === 'failed' || normalized === 'disconnected') {
-    badge.className = 'status-badge text-rose';
+    badge.className = 'status-badge text-tertiary';
     badge.style.fontSize = '0.65rem';
   } else {
     badge.className = 'status-badge';
@@ -863,7 +663,7 @@ window.kickWatcher = function(watcherId) {
 };
 
 // -----------------------------------------------------------------------------
-// 10. UI Status Helpers & Event Listeners
+// 9. UI Status Helpers & Event Listeners
 // -----------------------------------------------------------------------------
 function updateHostStatus(text, isLive) {
   hostStatusText.textContent = text;
@@ -880,46 +680,15 @@ function setupUIEventListeners() {
   btnPlayTestChime.addEventListener('click', playAudioTestChime);
   btnToggleClapper.addEventListener('click', toggleClapperTest);
 
-  // Tab switching
-  tabDesktopBtn.addEventListener('click', () => {
-    tabDesktopBtn.classList.add('active');
-    tabCinemaBtn.classList.remove('active');
-    panelDesktop.style.display = 'block';
-    panelCinema.style.display = 'none';
-  });
-
-  tabCinemaBtn.addEventListener('click', () => {
-    tabCinemaBtn.classList.add('active');
-    tabDesktopBtn.classList.remove('active');
-    panelDesktop.style.display = 'none';
-    panelCinema.style.display = 'block';
-  });
-
-  // Copy URL Button
   btnCopyUrl.addEventListener('click', () => {
     const url = listenUrlDisplay.textContent;
     navigator.clipboard.writeText(url).then(() => {
-      btnCopyUrl.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+      btnCopyUrl.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
       setTimeout(() => {
         btnCopyUrl.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>`;
       }, 1500);
     });
   });
-
-  setupCinemaPlayer();
-}
-
-function formatTime(seconds) {
-  if (isNaN(seconds) || seconds === Infinity) return '00:00';
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  const hrs = Math.floor(mins / 60);
-  const displayMins = mins % 60;
-
-  if (hrs > 0) {
-    return `${hrs.toString().padStart(2, '0')}:${displayMins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  }
-  return `${displayMins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 }
 
 function escapeHtml(str) {

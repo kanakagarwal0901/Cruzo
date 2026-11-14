@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cruzo Host — Multi-Device Wireless Audio Matrix</title>
+  <title>Cruzo Host — Wireless Audio Matrix</title>
   <link rel="stylesheet" href="/css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>">
 </head>
@@ -11,147 +11,153 @@
 
   <!-- Top Navigation Bar -->
   <header class="app-header">
-    <div class="brand-wrapper">
-      <div class="brand-logo">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
-          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
-        </svg>
-      </div>
-      <div>
+    <div style="display: flex; align-items: center; gap: 0.5rem;">
+      <a href="/" class="brand-wrapper">
+        <div class="brand-logo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+            <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+          </svg>
+        </div>
         <span class="brand-title">Cruzo</span>
-        <span class="brand-subtitle">Host PC Console</span>
-      </div>
+      </a>
+      <span class="brand-subtitle">Host Console</span>
     </div>
 
-    <div class="header-meta">
+    <div class="header-actions">
       <div id="hostStatusBadge" class="status-badge">
         <span class="status-dot"></span>
         <span id="hostStatusText">READY</span>
       </div>
       <div class="status-badge mono">
-        <span id="hostLanIpText">Detecting LAN IP...</span>
+        <span id="hostLanIpText">Detecting...</span>
       </div>
+      <!-- Theme Toggle -->
+      <button id="themeToggleBtn" class="btn-theme-toggle" type="button" title="Toggle Theme" aria-label="Toggle Dark and Light theme">
+        <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+      </button>
     </div>
   </header>
 
-  <!-- Main Grid Dashboard -->
+  <!-- Main Dashboard Grid -->
   <main class="container">
-    <div class="grid-main">
+    <div class="gateway-grid" style="grid-template-columns: 1fr; gap: 1.5rem;">
 
-      <!-- Left Column: Source Controls & Cinema Player -->
-      <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+      <!-- Broadcast Engine Card -->
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <h1 class="card-title">System Audio Broadcast</h1>
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">
+              Capture audio from your movie player (VLC, MPV, Netflix, or browser tab) and transmit it directly over local Wi-Fi.
+            </p>
+          </div>
+          <span class="status-badge mono">48kHz STEREO OPUS</span>
+        </div>
 
-        <!-- Audio Source Card -->
-        <section class="card">
-          <div class="card-header">
-            <h2 class="card-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>
-              Audio Broadcast Engine
-            </h2>
-            <div style="display: flex; gap: 0.5rem; align-items: center;">
-              <button id="btnPlayTestChime" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.35rem 0.75rem;" type="button" title="Plays a 3-note audio chime to immediately test phone sound">
-                🔊 Play Test Sound
-              </button>
-              <span class="status-badge mono text-emerald" style="font-size: 0.7rem;">OPUS 256K STEREO</span>
+        <!-- Controls Row -->
+        <div style="display: flex; gap: 0.85rem; align-items: center; flex-wrap: wrap; margin: 1.25rem 0;">
+          <button id="btnStartBroadcast" class="btn btn-primary btn-large" type="button">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            Start Audio Broadcast
+          </button>
+          <button id="btnStopBroadcast" class="btn btn-danger btn-large" type="button" disabled>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12"></rect></svg>
+            Stop Broadcast
+          </button>
+          <button id="btnPlayTestChime" class="btn btn-secondary" type="button" title="Plays a 3-note audio chime to immediately test phone sound">
+            🔊 Play Test Sound
+          </button>
+        </div>
+
+        <p style="font-size: 0.8rem; color: var(--text-tertiary); margin-bottom: 1.25rem;">
+          💡 When the browser prompt opens, choose <strong>Entire Screen</strong> (or your movie tab) and make sure to check <strong>"Also share system audio"</strong>.
+        </p>
+
+        <!-- Live Visualizer Canvas -->
+        <div class="visualizer-container">
+          <span class="visualizer-overlay">Broadcast Audio Spectrum • Stereo L/R</span>
+          <canvas id="hostVisualizerCanvas" class="visualizer-canvas"></canvas>
+        </div>
+      </section>
+
+      <!-- Bottom Split: Connect Hub & Calibration Station -->
+      <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;">
+        <div style="display: grid; grid-template-columns: 1fr; gap: 1.5rem;" class="grid-split">
+
+          <!-- QR Code & URL Connection Hub -->
+          <section class="card qr-box">
+            <div class="card-header" style="width: 100%;">
+              <h2 class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                Connect Mobile Listeners
+              </h2>
+              <span class="status-badge" style="font-size: 0.7rem;">0 INTERNET DATA</span>
             </div>
-          </div>
 
-          <!-- Tab Selection: Desktop Capture vs Built-in Cinema Player -->
-          <div class="tab-group">
-            <button id="tabDesktopBtn" class="tab-btn active" type="button">Desktop / Movie Player Capture</button>
-            <button id="tabCinemaBtn" class="tab-btn" type="button">Built-in Cinema Player (Local File)</button>
-          </div>
-
-          <!-- Section A: Desktop / Browser Screen Capture -->
-          <div id="panelDesktop">
-            <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1.25rem;">
-              Capture audio directly from your movie player (VLC, MPV, Netflix tab, or system audio). When the browser prompt opens, choose <strong>Entire Screen</strong> or your movie tab, and make sure to check <strong>"Also share system audio"</strong>.
+            <p style="font-size: 0.825rem; color: var(--text-secondary); margin-bottom: 1rem;">
+              Friends scan this QR code with their phone camera while connected to the same Wi-Fi / Hotspot:
             </p>
 
-            <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-              <button id="btnStartBroadcast" class="btn btn-primary btn-large" type="button">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                Start Audio Broadcast
+            <div class="qr-image-wrapper">
+              <img id="qrCodeImg" alt="Scan to listen on phone" src="">
+            </div>
+
+            <div class="copy-url-bar">
+              <span id="listenUrlDisplay" class="copy-url-text">Loading URL...</span>
+              <button id="btnCopyUrl" class="btn-icon" title="Copy to clipboard" type="button">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
               </button>
-              <button id="btnStopBroadcast" class="btn btn-danger btn-large" type="button" disabled>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><rect x="6" y="6" width="12" height="12"></rect></svg>
-                Stop Broadcast
-              </button>
+              <a id="btnOpenListenTab" href="/listen" target="_blank" class="btn-icon" title="Test in new tab" style="text-decoration: none;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              </a>
             </div>
-          </div>
+          </section>
 
-          <!-- Section B: Built-in Cinema Player -->
-          <div id="panelCinema" style="display: none;">
-            <p style="color: var(--text-secondary); font-size: 0.875rem; margin-bottom: 1rem;">
-              Play any local video file (<code>.mp4</code>, <code>.webm</code>, <code>.mkv</code>) inside Cruzo. Audio streams over LAN, and the <strong>Visual Sync Delay</strong> physically shifts on-screen video frames to match wireless Bluetooth earbuds.
-            </p>
-
-            <div id="cinemaDropzone" class="cinema-dropzone">
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color: var(--emerald-light); margin-bottom: 0.5rem;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-              <div style="font-weight: 600; color: var(--text-primary);">Click or Drag & Drop Movie File Here</div>
-              <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Supports MP4, WebM, MKV</div>
-              <input type="file" id="cinemaFileInput" accept="video/*" style="display: none;">
+          <!-- Connected Devices Telemetry Card -->
+          <section class="card">
+            <div class="card-header">
+              <h2 class="card-title">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                Connected Listeners (<span id="connectedCount">0</span>)
+              </h2>
+              <span class="status-badge live" style="font-size: 0.7rem;">WEBRTC UDP MESH</span>
             </div>
 
-            <div id="cinemaPlayerWrapper" style="display: none;" class="cinema-container">
-              <!-- Delayed Presentation Canvas -->
-              <div style="position: relative; width: 100%; background: #000; overflow: hidden;">
-                <canvas id="cinemaDisplayCanvas" style="width: 100%; max-height: 420px; display: block; margin: 0 auto;"></canvas>
-                <!-- Video element used as raw media decode engine -->
-                <video id="localCinemaVideo" playsinline style="display: none;"></video>
-              </div>
-
-              <!-- Custom Cinema Playback Controls -->
-              <div class="cinema-controls">
-                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.35rem;">
-                  <button id="btnCinemaPlayPause" class="btn btn-secondary btn-icon" type="button" title="Play/Pause">
-                    <svg id="cinemaPlayIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-                  </button>
-                  <input type="range" id="cinemaSeekBar" min="0" max="100" step="0.1" value="0" style="flex: 1; margin: 0;">
-                  <span id="cinemaTimeDisplay" class="mono text-muted" style="font-size: 0.75rem; white-space: nowrap;">00:00 / 00:00</span>
-                  <button id="btnCinemaFullscreen" class="btn btn-secondary btn-icon" type="button" title="Toggle Fullscreen">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
-                  </button>
-                </div>
-
-                <!-- Visual Delay Calibration Slider -->
-                <div class="slider-header" style="margin-top: 0.5rem; margin-bottom: 0.25rem;">
-                  <span class="slider-label">Visual Sync Delay (Compensates for Bluetooth earbud lag):</span>
-                  <span id="cinemaDelayValue" class="slider-value">0 ms</span>
-                </div>
-                <input type="range" id="cinemaDelaySlider" min="0" max="400" step="10" value="0">
-                <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-muted); margin-top: 2px;">
-                  <span>0ms (Wired)</span>
-                  <span>150ms-200ms (Standard Bluetooth Earbuds)</span>
-                  <span>400ms (Max)</span>
-                </div>
-              </div>
+            <div id="noPeersNotice" style="text-align: center; padding: 2.5rem 1rem; color: var(--text-tertiary); font-size: 0.85rem;">
+              No devices connected yet.<br>Scan the QR code to join this audio room.
             </div>
-          </div>
 
-          <!-- Real-Time Audio Visualizer -->
-          <div style="margin-top: 1.5rem;">
-            <div class="visualizer-container">
-              <span class="visualizer-overlay">Broadcast Audio Spectrum • Stereo L/R</span>
-              <canvas id="hostVisualizerCanvas" class="visualizer-canvas"></canvas>
+            <div id="peersList" class="peers-list" style="display: none;">
+              <!-- Dynamically populated peer cards -->
             </div>
-          </div>
-        </section>
+          </section>
 
-        <!-- Audio Sync Calibration & Clapper Tool Card -->
+        </div>
+
+        <!-- Lip-Sync Calibration Card -->
         <section class="card">
           <div class="card-header">
             <h2 class="card-title">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-              Audio-Video Lip-Sync Calibration Station
+              Audio-Video Lip-Sync Calibration
             </h2>
           </div>
 
           <div style="display: grid; grid-template-columns: 1fr; gap: 1rem;">
             <div>
               <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.75rem;">
-                <strong>Sync Clapper Pulse:</strong> Emits a simultaneous high-contrast screen flash and 1000Hz audio beep every 2 seconds. The beep is mixed directly into the movie stream so everyone wearing earbuds can align their sync sliders until the flash and beep land together!
+                <strong>Sync Clapper Tool:</strong> Emits a simultaneous visual screen flash and 1000Hz audio beep every 2 seconds. Listen through your earbuds while looking at the screen to dial in your individual millisecond offset.
               </p>
               <div style="display: flex; gap: 0.75rem; align-items: center;">
                 <button id="btnToggleClapper" class="btn btn-secondary" type="button">
@@ -164,75 +170,50 @@
               </div>
             </div>
 
-            <!-- Fast Cheat Sheet -->
-            <div style="background: rgba(0, 0, 0, 0.3); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.75rem 1rem; font-size: 0.8rem; line-height: 1.6;">
-              <strong class="text-sapphire">External Media Player Shortcuts for Host:</strong>
-              <ul style="margin-left: 1.25rem; margin-top: 0.25rem; color: var(--text-secondary);">
-                <li><strong>VLC Media Player:</strong> Press <kbd style="background: #1e293b; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono);">J</kbd> key 3–4 times to set Audio Track Sync to <span class="text-emerald font-mono">-150ms to -200ms</span>.</li>
-                <li><strong>MPV:</strong> Press <kbd style="background: #1e293b; padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono);">Ctrl + -</kbd> to decrease audio delay.</li>
-                <li><strong>Browser / YouTube / Netflix:</strong> Use the mobile listener's personal sync slider for individual fine-tuning.</li>
-              </ul>
+            <div style="background: var(--bg-glass-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 0.75rem 1rem; font-size: 0.8rem; line-height: 1.6;">
+              <strong style="color: var(--text-primary);">External Player Sync Shortcut:</strong>
+              <div style="color: var(--text-secondary); margin-top: 0.25rem;">
+                In <strong>VLC Media Player</strong>, press the <kbd style="background: var(--btn-secondary-bg); border: 1px solid var(--border-subtle); padding: 2px 6px; border-radius: 4px; font-family: var(--font-mono);">J</kbd> key 3–4 times to set Audio Track Sync to <span class="mono" style="color: var(--text-primary); font-weight: 600;">-150ms to -200ms</span>. This shifts audio slightly ahead so Bluetooth earbuds land on the exact millisecond actors' lips move on screen.
+              </div>
             </div>
           </div>
         </section>
-
-      </div>
-
-      <!-- Right Column: QR Code & Connected Devices Telemetry -->
-      <div style="display: flex; flex-direction: column; gap: 1.5rem;">
-
-        <!-- QR Code Card -->
-        <section class="card qr-box">
-          <div class="card-header" style="width: 100%;">
-            <h2 class="card-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-              Mobile Listener Connect
-            </h2>
-            <span class="status-badge" style="font-size: 0.7rem;">0 INTERNET DATA</span>
-          </div>
-
-          <p style="font-size: 0.825rem; color: var(--text-secondary); margin-bottom: 1rem;">
-            Friends scan this QR code with their smartphone camera while connected to the same Wi-Fi or Mobile Hotspot:
-          </p>
-
-          <div class="qr-image-wrapper">
-            <img id="qrCodeImg" alt="Scan to listen on phone" src="">
-          </div>
-
-          <div class="copy-url-bar">
-            <span id="listenUrlDisplay" class="copy-url-text">Loading URL...</span>
-            <button id="btnCopyUrl" class="btn-icon" title="Copy to clipboard" type="button">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-            </button>
-            <a id="btnOpenListenTab" href="/listen" target="_blank" class="btn-icon" title="Test in new tab" style="text-decoration: none;">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
-            </a>
-          </div>
-        </section>
-
-        <!-- Connected Listeners Telemetry Card -->
-        <section class="card">
-          <div class="card-header">
-            <h2 class="card-title">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-              Connected Devices (<span id="connectedCount">0</span>)
-            </h2>
-            <span class="status-badge live" style="font-size: 0.7rem;">WEBRTC UDP MESH</span>
-          </div>
-
-          <div id="noPeersNotice" style="text-align: center; padding: 2rem 1rem; color: var(--text-muted); font-size: 0.85rem;">
-            No listeners connected yet.<br>Scan the QR code on your smartphone to join.
-          </div>
-
-          <div id="peersList" class="peers-list" style="display: none;">
-            <!-- Dynamically populated peer cards -->
-          </div>
-        </section>
-
       </div>
 
     </div>
   </main>
+
+  <style>
+    @media (min-width: 900px) {
+      .grid-split {
+        grid-template-columns: 5fr 7fr !important;
+      }
+    }
+  </style>
+
+  <!-- Theme Script -->
+  <script>
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const themeIcon = document.getElementById('themeIcon');
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('cruzo-theme', theme);
+      if (theme === 'light') {
+        themeIcon.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>`;
+      } else {
+        themeIcon.innerHTML = `<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>`;
+      }
+    }
+
+    const savedTheme = localStorage.getItem('cruzo-theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    applyTheme(savedTheme);
+
+    themeToggleBtn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      applyTheme(current);
+    });
+  </script>
 
   <!-- Load Socket.io and Host Broadcast Logic -->
   <script src="/socket.io/socket.io.js"></script>

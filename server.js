@@ -63,7 +63,6 @@ function cleanClientIp(rawIp) {
 }
 
 // Utility: De-anonymize mDNS (.local) ICE Candidates to physical IPv4
-// Chrome & Android hide local IPs behind .local UUIDs; on LAN, this blocks P2P UDP.
 function deanonymizeCandidate(candidateObj, realIp) {
   if (!candidateObj || !candidateObj.candidate) return candidateObj;
   let str = candidateObj.candidate;
@@ -91,14 +90,9 @@ function deanonymizeSdp(sdpStr, realIp) {
 // Serve static frontend assets
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Root route redirects based on device
+// Home Gateway Page (Asks whether to Host or Join)
 app.get('/', (req, res) => {
-  const ua = req.headers['user-agent'] || '';
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-  if (isMobile) {
-    return res.redirect('/listen');
-  }
-  res.redirect('/host');
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Dedicated routes
@@ -110,18 +104,18 @@ app.get('/listen', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'listen.html'));
 });
 
-// API route to provide connection metadata and QR code
+// API route to provide connection metadata and minimalist QR code
 app.get('/api/info', async (req, res) => {
   try {
     const listenUrl = `http://${LOCAL_IP}:${PORT}/listen`;
     const hostUrl = `http://localhost:${PORT}/host`;
     const qrCodeDataUrl = await QRCode.toDataURL(listenUrl, {
       errorCorrectionLevel: 'M',
-      margin: 2,
+      margin: 1,
       scale: 8,
       color: {
-        dark: '#030712',
-        light: '#10b981'
+        dark: '#000000',
+        light: '#ffffff'
       }
     });
 
@@ -187,7 +181,6 @@ io.on('connection', (socket) => {
   // 3. WebRTC Offer (Host -> Watcher)
   socket.on('offer', (data) => {
     if (data && data.targetId && data.sdp) {
-      // De-anonymize Host's SDP with Host's real physical LAN IP
       const sanitizedSdp = {
         ...data.sdp,
         sdp: deanonymizeSdp(data.sdp.sdp, LOCAL_IP)
@@ -203,7 +196,6 @@ io.on('connection', (socket) => {
   // 4. WebRTC Answer (Watcher -> Host)
   socket.on('answer', (data) => {
     if (broadcasterSocketId && data && data.sdp) {
-      // De-anonymize Watcher's SDP with Watcher's real physical LAN IP
       const watcherIp = cleanClientIp(socket.handshake.address);
       const sanitizedSdp = {
         ...data.sdp,
@@ -222,14 +214,12 @@ io.on('connection', (socket) => {
     if (!data || !data.targetId || !data.candidate) return;
 
     if (socket.id === broadcasterSocketId) {
-      // Candidate is from Broadcaster -> replace mDNS with LOCAL_IP
       const sanitizedCandidate = deanonymizeCandidate(data.candidate, LOCAL_IP);
       io.to(data.targetId).emit('ice-candidate', {
         senderId: socket.id,
         candidate: sanitizedCandidate
       });
     } else {
-      // Candidate is from Watcher -> replace mDNS with Watcher's LAN IP
       const watcherIp = cleanClientIp(socket.handshake.address);
       const sanitizedCandidate = deanonymizeCandidate(data.candidate, watcherIp);
       if (broadcasterSocketId) {
@@ -256,7 +246,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 7. Fallback Audio Stream Relay (over Socket.io TCP if UDP blocked by firewall)
+  // 7. Fallback Audio Stream Relay
   socket.on('stream-audio-chunk', (data) => {
     if (socket.id === broadcasterSocketId) {
       socket.broadcast.emit('audio-chunk', data);
@@ -293,7 +283,8 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`\n======================================================`);
   console.log(` 🎧 Cruzo — Multi-Device Wireless Audio Matrix `);
   console.log(`======================================================`);
-  console.log(` Host PC Dashboard:  http://localhost:${PORT}/host`);
+  console.log(` Gateway Home:      http://localhost:${PORT}/`);
+  console.log(` Host PC Console:   http://localhost:${PORT}/host`);
   console.log(` Mobile Listener:   http://${LOCAL_IP}:${PORT}/listen`);
   console.log(` Local Subnet IP:   ${LOCAL_IP}`);
   console.log(`======================================================\n`);

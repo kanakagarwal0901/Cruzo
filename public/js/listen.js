@@ -518,16 +518,22 @@ function startVisualizerLoop() {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
     const barWidth = (canvas.width / bufferLength) * 2.5;
     let x = 0;
 
     for (let i = 0; i < bufferLength; i++) {
       const barHeight = (dataArray[i] / 255) * canvas.height;
 
+      // Clean monochrome gradient (Grayscale Apple style)
       const gradient = ctx.createLinearGradient(0, canvas.height, 0, 0);
-      gradient.addColorStop(0, '#0284c7');
-      gradient.addColorStop(0.6, '#10b981');
-      gradient.addColorStop(1, '#34d399');
+      if (isLight) {
+        gradient.addColorStop(0, 'rgba(0, 0, 0, 0.25)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0.85)');
+      } else {
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+        gradient.addColorStop(1, 'rgba(255, 255, 255, 0.9)');
+      }
 
       ctx.fillStyle = gradient;
       ctx.fillRect(x, canvas.height - barHeight, barWidth - 1, barHeight);

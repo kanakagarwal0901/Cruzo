@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cruzo — Multi-Device Wireless Audio Matrix</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎧</text></svg>">
+</head>
+<body>
+
+  <!-- Top Navigation Bar -->
+  <header class="app-header">
+    <a href="/" class="brand-wrapper">
+      <div class="brand-logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+        </svg>
+      </div>
+      <div>
+        <span class="brand-title">Cruzo</span>
+      </div>
+    </a>
+
+    <div class="header-actions">
+      <!-- Dark/Light Theme Toggle -->
+      <button id="themeToggleBtn" class="btn-theme-toggle" type="button" title="Toggle Theme" aria-label="Toggle Dark and Light theme">
+        <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <!-- Hero & Gateway Choice -->
+  <main class="container">
+    <section class="hero-gateway">
+      <div class="hero-pill">
+        <span class="status-dot" style="background: var(--text-primary);"></span>
+        <span>Local Area Wireless Audio</span>
+      </div>
+      <h1 class="hero-title">One screen.<br>Every earbud.</h1>
+      <p class="hero-subtitle">
+        Stream synchronized, high-fidelity stereo audio from a single PC directly to multiple smartphones over local Wi-Fi. Zero cables. Zero internet bandwidth.
+      </p>
+
+      <!-- Selection Cards -->
+      <div class="gateway-grid">
+        <!-- Option 1: Host PC -->
+        <a href="/host" class="gateway-card">
+          <div class="gateway-card-top">
+            <div class="gateway-icon-wrapper">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+            </div>
+            <h2 class="gateway-heading">Host Broadcast</h2>
+            <p class="gateway-desc">
+              Play your movie or video on this PC. Broadcast your desktop audio directly to everyone’s phones with sub-25ms latency.
+            </p>
+          </div>
+          <div class="gateway-footer">
+            <span class="status-badge mono">256K OPUS STEREO</span>
+            <span class="gateway-cta">
+              Open Host
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </span>
+          </div>
+        </a>
+
+        <!-- Option 2: Smartphone Listener -->
+        <a href="/listen" class="gateway-card">
+          <div class="gateway-card-top">
+            <div class="gateway-icon-wrapper">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
+                <line x1="12" y1="18" x2="12.01" y2="18"></line>
+              </svg>
+            </div>
+            <h2 class="gateway-heading">Join as Listener</h2>
+            <p class="gateway-desc">
+              Connect your wireless earbuds or headphones to your phone, join the local audio room, and fine-tune your personal Bluetooth sync.
+            </p>
+          </div>
+          <div class="gateway-footer">
+            <span class="status-badge mono">0 MB INTERNET</span>
+            <span class="gateway-cta">
+              Listen Now
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </span>
+          </div>
+        </a>
+      </div>
+
+      <!-- Quick Info / LAN IP Status -->
+      <div style="font-size: 0.8rem; color: var(--text-tertiary); display: flex; align-items: center; justify-content: center; gap: 0.75rem;">
+        <span>Local Subnet: <strong id="lanIpBadge" class="mono text-secondary">Detecting...</strong></span>
+        <span>•</span>
+        <span>WebRTC UDP Direct</span>
+      </div>
+    </section>
+  </main>
+
+  <!-- Theme & Gateway Logic -->
+  <script>
+    // Theme Management (Light / Dark)
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    const themeIcon = document.getElementById('themeIcon');
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('cruzo-theme', theme);
+
+      if (theme === 'light') {
+        // Moon icon
+        themeIcon.innerHTML = `<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>`;
+      } else {
+        // Sun icon
+        themeIcon.innerHTML = `<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>`;
+      }
+    }
+
+    const savedTheme = localStorage.getItem('cruzo-theme') || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+    applyTheme(savedTheme);
+
+    themeToggleBtn.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      applyTheme(current);
+    });
+
+    // Fetch LAN info
+    fetch('/api/info')
+      .then(res => res.json())
+      .then(data => {
+        document.getElementById('lanIpBadge').textContent = `${data.localIp}:${data.port}`;
+      })
+      .catch(() => {
+        document.getElementById('lanIpBadge').textContent = 'Localhost';
+      });
+  </script>
+</body>
+</html>
