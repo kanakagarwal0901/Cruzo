@@ -1,6 +1,6 @@
 /**
  * Cruzo — Mobile Receiver Logic
- * WebRTC Audio Receiver, Candidate Queueing, playoutDelayHint, DelayNode, MediaSession Keep-Alive
+ * WebRTC Audio Receiver, Real HTML5 Media Playout, playoutDelayHint, DelayNode & MediaSession
  */
 
 // Global State
@@ -11,7 +11,6 @@ let mediaStreamSource = null;
 let delayNode = null;
 let gainNode = null;
 let analyserNode = null;
-let isGraphConnected = false;
 let visualizerAnimationId = null;
 let currentDelayMs = 0;
 let currentVolumeMultiplier = 1.0;
@@ -43,6 +42,10 @@ const btnReconnect = document.getElementById('btnReconnect');
 const wakeLockStatus = document.getElementById('wakeLockStatus');
 const jitterBufferStatus = document.getElementById('jitterBufferStatus');
 const iceStateStatus = document.getElementById('iceStateStatus');
+const audioModeBadge = document.getElementById('audioModeBadge');
+
+// Audio Elements
+const remoteAudio = document.getElementById('remoteAudio');
 const hiddenSilentAudio = document.getElementById('hiddenSilentAudio');
 
 // Initialize on Load
@@ -73,17 +76,24 @@ function initSocket() {
     startPingHeartbeat();
   });
 
-  // Host presence status
   socket.on('broadcaster-status', (status) => {
     if (status.active) {
-      updateClientStatus('HOST ONLINE', true);
+      if (!isAudioUnlocked) {
+        updateClientStatus('HOST READY • TAP UNMUTE', true);
+      } else {
+        updateClientStatus('HOST ONLINE', true);
+      }
     } else {
       updateClientStatus('WAITING FOR HOST', false);
     }
   });
 
   socket.on('broadcaster-available', () => {
-    updateClientStatus('HOST ONLINE', true);
+    if (!isAudioUnlocked) {
+      updateClientStatus('HOST READY • TAP UNMUTE', true);
+    } else {
+      updateClientStatus('HOST ONLINE', true);
+    }
     socket.emit('watcher-join', {
       deviceName: detectDeviceName(),
       userAgent: navigator.userAgent
@@ -111,9 +121,15 @@ function initSocket() {
           console.warn('[Cruzo] Error adding ICE candidate:', err);
         }
       } else {
-        // Queue candidate until setRemoteDescription completes
         pendingIceCandidates.push(data.candidate);
       }
+    }
+  });
+
+  // Fallback direct LAN audio chunk from host
+  socket.on('audio-chunk', (data) => {
+    if (isAudioUnlocked && audioContext) {
+      playFallbackAudioChunk(data);
     }
   });
 
@@ -123,7 +139,6 @@ function initSocket() {
     rttPingMs = Math.max(1, now - data.timestamp);
     clientPingText.textContent = `${rttPingMs} ms`;
 
-    // Report back to Host PC console
     socket.emit('watcher-telemetry', {
       rtt: rttPingMs,
       delayOffset: currentDelayMs
@@ -153,7 +168,7 @@ function startPingHeartbeat() {
 }
 
 // -----------------------------------------------------------------------------
-// 2. WebRTC Peer Connection & Playout Delay Optimization
+// 2. WebRTC Peer Connection & Playout Optimization
 // -----------------------------------------------------------------------------
 async function handleWebRtcOffer(data) {
   closePeerConnection();
@@ -171,7 +186,6 @@ async function handleWebRtcOffer(data) {
 
   peerConnection = new RTCPeerConnection(rtcConfig);
 
-  // Send local ICE candidates to Host
   peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
       socket.emit('ice-candidate', {
@@ -188,18 +202,18 @@ async function handleWebRtcOffer(data) {
 
     if (state === 'connected' || state === 'completed') {
       updateClientStatus('STREAMING', true);
+      audioModeBadge.textContent = 'WEBRTC UDP (DIRECT LAN)';
     } else if (state === 'checking') {
       updateClientStatus('CONNECTING...', false);
-    } else if (state === 'disconnected') {
-      updateClientStatus('RECONNECTING', false);
     } else if (state === 'failed') {
-      updateClientStatus('FAILED - RETRY', false);
+      console.warn('[Cruzo] WebRTC UDP failed, switching to relay');
+      updateClientStatus('CONNECTING RELAY', false);
     }
   };
 
   peerConnection.onconnectionstatechange = () => {
     const state = peerConnection.connectionState;
-    console.log(`[Cruzo] Peer Connection State: ${state}`);
+    console.log(`[Cruzo] Connection State: ${state}`);
     if (state === 'connected') {
       updateClientStatus('STREAMING', true);
     }
@@ -209,13 +223,21 @@ async function handleWebRtcOffer(data) {
   peerConnection.ontrack = (event) => {
     console.log('[Cruzo] Received audio track:', event.track);
 
-    // Force Chromium's internal jitter buffer down to 20ms
     if (event.receiver && 'playoutDelayHint' in event.receiver) {
       event.receiver.playoutDelayHint = 0.02;
-      jitterBufferStatus.textContent = '⚡ Playout Hint: 20ms';
+      jitterBufferStatus.textContent = '⚡ Playout: 20ms';
     }
 
-    activeRemoteStream = event.streams[0];
+    // Ensure we always have a valid MediaStream object
+    activeRemoteStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream([event.track]);
+
+    // Attach to HTML5 <audio> element (essential for Android Chrome WebRTC audio engine to decode)
+    remoteAudio.srcObject = activeRemoteStream;
+    remoteAudio.volume = isMuted ? 0 : Math.min(1.0, currentVolumeMultiplier);
+    remoteAudio.play().catch(e => {
+      console.log('[Cruzo] Audio play pending user tap:', e);
+    });
+
     if (isAudioUnlocked) {
       setupAudioPipeline(activeRemoteStream);
     }
@@ -224,7 +246,7 @@ async function handleWebRtcOffer(data) {
   try {
     await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
     isRemoteDescriptionSet = true;
-    console.log('[Cruzo] Set remote description successfully');
+    console.log('[Cruzo] Remote description set successfully');
 
     // Drain queued ICE candidates
     while (pendingIceCandidates.length > 0) {
@@ -232,7 +254,7 @@ async function handleWebRtcOffer(data) {
       try {
         await peerConnection.addIceCandidate(new RTCIceCandidate(cand));
       } catch (err) {
-        console.warn('[Cruzo] Error draining queued candidate:', err);
+        console.warn('[Cruzo] Error adding queued candidate:', err);
       }
     }
 
@@ -259,51 +281,48 @@ function closePeerConnection() {
 }
 
 // -----------------------------------------------------------------------------
-// 3. Web Audio API Pipeline & DelayNode
+// 3. Audio Pipeline, Delay Calibration & Output Management
 // -----------------------------------------------------------------------------
 function setupAudioPipeline(stream) {
   if (!stream) return;
   ensureAudioContext();
 
   try {
-    // Cleanly disconnect previous media stream source if any
     if (mediaStreamSource) {
-      try {
-        mediaStreamSource.disconnect();
-      } catch (e) {}
+      try { mediaStreamSource.disconnect(); } catch (e) {}
       mediaStreamSource = null;
     }
 
     mediaStreamSource = audioContext.createMediaStreamSource(stream);
 
-    // Create DelayNode (supports up to 1.0s personal delay)
     if (!delayNode) {
       delayNode = audioContext.createDelay(1.0);
       delayNode.delayTime.setValueAtTime(currentDelayMs / 1000, audioContext.currentTime);
     }
 
-    // Create GainNode (Volume & Boost)
     if (!gainNode) {
       gainNode = audioContext.createGain();
       gainNode.gain.setValueAtTime(isMuted ? 0 : currentVolumeMultiplier, audioContext.currentTime);
     }
 
-    // Create AnalyserNode (Live Visualizer)
     if (!analyserNode) {
       analyserNode = audioContext.createAnalyser();
       analyserNode.fftSize = 128;
       analyserNode.smoothingTimeConstant = 0.75;
     }
 
-    // Connect source to delay
-    mediaStreamSource.connect(delayNode);
+    // Connect source to analyser for visualizer
+    mediaStreamSource.connect(analyserNode);
 
-    // Connect downstream graph only once to prevent signal duplication
-    if (!isGraphConnected) {
+    // If personal delay > 0, route through Web Audio DelayNode; otherwise native <audio> handles lowest latency
+    if (currentDelayMs > 0) {
+      remoteAudio.muted = true; // Mute direct element to avoid echo
+      mediaStreamSource.connect(delayNode);
       delayNode.connect(gainNode);
-      gainNode.connect(analyserNode);
-      analyserNode.connect(audioContext.destination);
-      isGraphConnected = true;
+      gainNode.connect(audioContext.destination);
+    } else {
+      remoteAudio.muted = false;
+      remoteAudio.volume = isMuted ? 0 : Math.min(1.0, currentVolumeMultiplier);
     }
 
     startVisualizerLoop();
@@ -317,6 +336,10 @@ function updatePersonalDelay(ms) {
   currentDelayMs = Math.max(0, Math.min(400, ms));
   delayBadgeValue.textContent = `${currentDelayMs} ms`;
   syncDelaySlider.value = currentDelayMs;
+
+  if (activeRemoteStream && isAudioUnlocked) {
+    setupAudioPipeline(activeRemoteStream);
+  }
 
   if (delayNode && audioContext) {
     delayNode.delayTime.setTargetAtTime(currentDelayMs / 1000, audioContext.currentTime, 0.015);
@@ -346,6 +369,8 @@ function updateVolume(val) {
   volumePercentDisplay.textContent = `${percent}%`;
   currentVolumeMultiplier = percent / 100;
 
+  remoteAudio.volume = isMuted ? 0 : Math.min(1.0, currentVolumeMultiplier);
+
   if (gainNode && audioContext && !isMuted) {
     gainNode.gain.setTargetAtTime(currentVolumeMultiplier, audioContext.currentTime, 0.01);
   }
@@ -353,6 +378,8 @@ function updateVolume(val) {
 
 function toggleMute() {
   isMuted = !isMuted;
+  remoteAudio.muted = isMuted;
+
   if (gainNode && audioContext) {
     gainNode.gain.setTargetAtTime(isMuted ? 0 : currentVolumeMultiplier, audioContext.currentTime, 0.01);
   }
@@ -369,7 +396,7 @@ function toggleMute() {
 }
 
 // -----------------------------------------------------------------------------
-// 4. Autoplay Unlock, WakeLock & Background MediaSession API
+// 4. Autoplay Unlock, WakeLock & Background MediaSession
 // -----------------------------------------------------------------------------
 async function unlockAudio() {
   ensureAudioContext();
@@ -378,7 +405,7 @@ async function unlockAudio() {
     await audioContext.resume();
   }
 
-  // Play a brief silent audio buffer to unlock iOS/Android hardware DAC
+  // Play hardware buffer to completely unlock audio output on iOS & Android Chrome
   try {
     const buffer = audioContext.createBuffer(1, 1, 22050);
     const source = audioContext.createBufferSource();
@@ -386,29 +413,33 @@ async function unlockAudio() {
     source.connect(audioContext.destination);
     source.start(0);
   } catch (e) {
-    console.log('Buffer unlock caught:', e);
+    console.log('Buffer unlock:', e);
   }
 
-  // Play silent audio element loop for Android/iOS background tab keep-alive
+  // Play remote audio tag directly inside touch gesture
+  try {
+    await remoteAudio.play();
+  } catch (e) {
+    console.log('remoteAudio initial unlock:', e);
+  }
+
+  // Play silent keep-alive loop for background OS audio thread persistence
   try {
     await hiddenSilentAudio.play();
   } catch (e) {
-    console.log('Silent audio unlock caught:', e);
+    console.log('Silent audio unlock:', e);
   }
 
-  // Request Screen WakeLock
   requestScreenWakeLock();
-
-  // Configure Navigator MediaSession API
   setupMediaSession();
 
   isAudioUnlocked = true;
   unmuteHeroSection.style.display = 'none';
   streamingActiveCard.style.display = 'block';
 
-  // Wire up audio pipeline immediately if stream already arrived
   if (activeRemoteStream) {
     setupAudioPipeline(activeRemoteStream);
+    remoteAudio.play().catch(() => {});
   }
 }
 
@@ -435,7 +466,6 @@ async function requestScreenWakeLock() {
   }
 }
 
-// Re-acquire WakeLock automatically when user returns to tab
 document.addEventListener('visibilitychange', async () => {
   if (document.visibilityState === 'visible' && isAudioUnlocked) {
     requestScreenWakeLock();
@@ -457,11 +487,10 @@ function setupMediaSession() {
       if (audioContext && audioContext.state === 'suspended') {
         audioContext.resume();
       }
+      remoteAudio.play().catch(() => {});
     });
 
-    navigator.mediaSession.setActionHandler('pause', () => {
-      // Keep playing even if pause requested
-    });
+    navigator.mediaSession.setActionHandler('pause', () => {});
   }
 }
 
@@ -472,7 +501,7 @@ function setupCanvas(canvas) {
   const rect = canvas.getBoundingClientRect();
   const dpr = window.devicePixelRatio || 1;
   canvas.width = (rect.width || 400) * dpr;
-  canvas.height = (rect.height || 70) * dpr;
+  canvas.height = (rect.height || 75) * dpr;
 }
 
 function startVisualizerLoop() {
@@ -514,15 +543,12 @@ function startVisualizerLoop() {
 // 6. Event Listeners & UI Helpers
 // -----------------------------------------------------------------------------
 function setupEventListeners() {
-  // Hero Unmute
   btnUnmuteHero.addEventListener('click', unlockAudio);
 
-  // Sync Slider
   syncDelaySlider.addEventListener('input', (e) => {
     updatePersonalDelay(parseInt(e.target.value, 10));
   });
 
-  // Micro adjustments (-20ms, -5ms, +5ms, +20ms)
   document.querySelectorAll('.btn-fine').forEach(btn => {
     btn.addEventListener('click', () => {
       const delta = parseInt(btn.getAttribute('data-delta'), 10);
@@ -530,7 +556,6 @@ function setupEventListeners() {
     });
   });
 
-  // Preset pills
   document.querySelectorAll('.btn-preset').forEach(btn => {
     btn.addEventListener('click', () => {
       const preset = parseInt(btn.getAttribute('data-preset'), 10);
@@ -538,15 +563,12 @@ function setupEventListeners() {
     });
   });
 
-  // Volume
   volumeSlider.addEventListener('input', (e) => {
     updateVolume(e.target.value);
   });
 
-  // Mute
   btnMuteToggle.addEventListener('click', toggleMute);
 
-  // Reconnect
   btnReconnect.addEventListener('click', () => {
     console.log('[Cruzo] User triggered manual reconnect');
     if (socket && socket.connected) {
@@ -554,6 +576,9 @@ function setupEventListeners() {
         deviceName: detectDeviceName(),
         userAgent: navigator.userAgent
       });
+    }
+    if (remoteAudio.srcObject) {
+      remoteAudio.play().catch(() => {});
     }
   });
 }

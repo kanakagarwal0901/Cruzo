@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', () => setupCanvas(hostVisualizerCanvas));
 });
 
-// Resume AudioContext on any user interaction with host page
+// Resume AudioContext on first interaction
 document.addEventListener('click', () => {
   if (audioContext && audioContext.state === 'suspended') {
     audioContext.resume();
@@ -112,6 +112,16 @@ function initAudioMasterBus() {
     analyserNode.fftSize = 256;
     analyserNode.smoothingTimeConstant = 0.8;
   }
+}
+
+function getActiveBroadcastTrack() {
+  if (desktopRawStream && desktopRawStream.active && desktopRawStream.getAudioTracks().length > 0) {
+    return desktopRawStream.getAudioTracks()[0];
+  }
+  if (broadcastStream && broadcastStream.getAudioTracks().length > 0) {
+    return broadcastStream.getAudioTracks()[0];
+  }
+  return null;
 }
 
 // -----------------------------------------------------------------------------
@@ -189,7 +199,6 @@ function initSocket() {
   socket.on('ice-candidate', async (data) => {
     const pc = peerConnections.get(data.senderId);
     if (pc && data.candidate) {
-      // If remote description is already set, add immediately
       if (pc.remoteDescription && pc.remoteDescription.type) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
@@ -197,7 +206,6 @@ function initSocket() {
           console.error(`[Cruzo] Failed to add ICE candidate for ${data.senderId}:`, err);
         }
       } else {
-        // Queue candidate until answer remoteDescription is set
         if (!pendingIceCandidatesMap.has(data.senderId)) {
           pendingIceCandidatesMap.set(data.senderId, []);
         }
@@ -211,7 +219,7 @@ function initSocket() {
     removePeer(data.watcherId);
   });
 
-  // Watcher updated its personal telemetry (RTT & personal delay)
+  // Watcher updated its personal telemetry
   socket.on('watcher-telemetry-update', (data) => {
     updatePeerTelemetry(data.watcherId, data.rtt, data.delayOffset);
   });
@@ -234,7 +242,6 @@ async function createPeerConnectionForWatcher(watcherId) {
 
   pendingIceCandidatesMap.set(watcherId, []);
 
-  // WebRTC Configuration: Immediate LAN host candidates with STUN fallback
   const rtcConfig = {
     iceServers: [
       { urls: 'stun:stun.l.google.com:19302' },
@@ -247,12 +254,10 @@ async function createPeerConnectionForWatcher(watcherId) {
   const pc = new RTCPeerConnection(rtcConfig);
   peerConnections.set(watcherId, pc);
 
-  // Attach master broadcast audio track
-  if (broadcastStream) {
-    const tracks = broadcastStream.getAudioTracks();
-    if (tracks.length > 0) {
-      pc.addTrack(tracks[0], broadcastStream);
-    }
+  // Attach active audio track (native system audio or master bus)
+  const trackToStream = getActiveBroadcastTrack();
+  if (trackToStream) {
+    pc.addTrack(trackToStream, broadcastStream);
   }
 
   // Handle local ICE candidates
@@ -265,7 +270,6 @@ async function createPeerConnectionForWatcher(watcherId) {
     }
   };
 
-  // Monitor connection state
   pc.oniceconnectionstatechange = () => {
     console.log(`[Cruzo] Watcher ${watcherId} ICE state: ${pc.iceConnectionState}`);
     updatePeerStateBadge(watcherId, pc.iceConnectionState);
@@ -282,9 +286,7 @@ async function createPeerConnectionForWatcher(watcherId) {
       offerToReceiveVideo: false
     });
 
-    // Apply Cruzo Stereo 256kbps CBR Opus SDP Hack
     offer.sdp = enableStereoOpus(offer.sdp);
-
     await pc.setLocalDescription(offer);
 
     socket.emit('offer', {
@@ -316,7 +318,6 @@ function enableStereoOpus(sdp) {
         }
       });
 
-      // Force Cinema-grade parameters
       paramMap.set('stereo', '1');
       paramMap.set('sprop-stereo', '1');
       paramMap.set('maxaveragebitrate', '256000');
@@ -330,7 +331,6 @@ function enableStereoOpus(sdp) {
       return `${prefix}${reconstructed}${ending || '\r\n'}`;
     });
   } else {
-    // If no existing fmtp, insert it directly below rtpmap
     const rtpmapRegex = new RegExp('(a=rtpmap:' + pt + ' opus\\/48000\\/2[^\\r\\n]*\\r\\n)', 'i');
     return sdp.replace(
       rtpmapRegex,
@@ -372,18 +372,28 @@ async function startDesktopBroadcast() {
       return;
     }
 
-    // Immediately stop and discard video track so zero video bandwidth is used
+    // Stop video track so only audio is transmitted
     desktopRawStream.getVideoTracks().forEach(t => t.stop());
 
-    // Connect to Master Web Audio Bus
+    // Connect to Master Web Audio Bus for spectrum analyser
     if (desktopSourceNode) {
       desktopSourceNode.disconnect();
     }
     desktopSourceNode = audioContext.createMediaStreamSource(desktopRawStream);
-    desktopSourceNode.connect(masterDest);
     desktopSourceNode.connect(analyserNode);
 
-    // Stop broadcast if user closes via Chrome's floating bar
+    // Swap the active audio track on all connected peers to the raw hardware audio track
+    const newTrack = audioTracks[0];
+    for (const [id, pc] of peerConnections.entries()) {
+      const senders = pc.getSenders();
+      const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+      if (audioSender) {
+        audioSender.replaceTrack(newTrack).catch(e => console.warn('replaceTrack error:', e));
+      } else {
+        pc.addTrack(newTrack, broadcastStream);
+      }
+    }
+
     audioTracks[0].onended = () => {
       stopDesktopBroadcast();
     };
@@ -408,6 +418,18 @@ function stopDesktopBroadcast() {
   if (desktopRawStream) {
     desktopRawStream.getTracks().forEach(t => t.stop());
     desktopRawStream = null;
+  }
+
+  // Swap peers back to master bus track
+  const fallbackTrack = broadcastStream.getAudioTracks()[0];
+  if (fallbackTrack) {
+    for (const pc of peerConnections.values()) {
+      const senders = pc.getSenders();
+      const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+      if (audioSender) {
+        audioSender.replaceTrack(fallbackTrack).catch(() => {});
+      }
+    }
   }
 
   updateHostStatus('READY', false);
@@ -446,13 +468,11 @@ function setupCinemaPlayer() {
     }
   });
 
-  // Delay Slider
   cinemaDelaySlider.addEventListener('input', (e) => {
     cinemaVideoDelayMs = parseInt(e.target.value, 10);
     cinemaDelayValue.textContent = `${cinemaVideoDelayMs} ms`;
   });
 
-  // Play / Pause Button
   btnCinemaPlayPause.addEventListener('click', () => {
     if (localCinemaVideo.paused) {
       localCinemaVideo.play();
@@ -470,7 +490,6 @@ function setupCinemaPlayer() {
     cinemaPlayIcon.innerHTML = `<polygon points="5 3 19 12 5 21 5 3"></polygon>`;
   });
 
-  // Time & Scrubber
   localCinemaVideo.addEventListener('timeupdate', () => {
     if (!isScrubbing && localCinemaVideo.duration) {
       cinemaSeekBar.value = (localCinemaVideo.currentTime / localCinemaVideo.duration) * 100;
@@ -496,7 +515,6 @@ function setupCinemaPlayer() {
     isScrubbing = false;
   });
 
-  // Fullscreen
   btnCinemaFullscreen.addEventListener('click', () => {
     if (!document.fullscreenElement) {
       cinemaPlayerWrapper.requestFullscreen().catch(() => {});
@@ -522,7 +540,6 @@ function loadCinemaFile(file) {
     cinemaDisplayCanvas.height = localCinemaVideo.videoHeight || 720;
     cinemaTimeDisplay.textContent = `00:00 / ${formatTime(localCinemaVideo.duration)}`;
 
-    // Capture Cinema Audio and pipe into Master Bus
     if (!cinemaAudioSource) {
       cinemaAudioSource = audioContext.createMediaElementSource(localCinemaVideo);
       cinemaAudioSource.connect(masterDest);
@@ -536,10 +553,6 @@ function loadCinemaFile(file) {
   };
 }
 
-/**
- * Real-time Physical Video Delay Render Loop
- * Buffers ImageBitmaps with precise performance timestamps
- */
 function renderCinemaLoop() {
   if (localCinemaVideo.paused || localCinemaVideo.ended) return;
 
@@ -596,7 +609,6 @@ function playAudioTestChime() {
     audioContext.resume();
   }
 
-  // Play a pleasant 3-note chime: C5 (523Hz), E5 (659Hz), G5 (784Hz)
   const notes = [523.25, 659.25, 783.99];
   const now = audioContext.currentTime;
 
@@ -608,14 +620,12 @@ function playAudioTestChime() {
     osc.frequency.setValueAtTime(freq, now + index * 0.18);
 
     gain.gain.setValueAtTime(0.001, now + index * 0.18);
-    gain.gain.exponentialRampToValueAtTime(0.6, now + index * 0.18 + 0.04);
+    gain.gain.exponentialRampToValueAtTime(0.7, now + index * 0.18 + 0.04);
     gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.18 + 0.35);
 
     osc.connect(gain);
-    // Connect to Master Broadcast Stream so listeners hear it over WebRTC
     gain.connect(masterDest);
     gain.connect(analyserNode);
-    // Connect to Host Speakers
     gain.connect(audioContext.destination);
 
     osc.start(now + index * 0.18);
@@ -624,7 +634,6 @@ function playAudioTestChime() {
 
   startVisualizerLoop();
 
-  // Button feedback
   btnPlayTestChime.textContent = '🎶 Playing Chime...';
   setTimeout(() => {
     btnPlayTestChime.textContent = '🔊 Play Test Sound';
