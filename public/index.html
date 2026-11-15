@@ -156,7 +156,7 @@
         .then(data => {
           const badge = document.getElementById('lanIpBadge');
           if (badge && data.localIp) {
-            badge.textContent = `${data.localIp}:${data.port}`;
+            badge.textContent = data.isCloud ? data.localIp : `${data.localIp}:${data.port}`;
           }
         })
         .catch(() => {

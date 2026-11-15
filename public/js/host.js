@@ -159,12 +159,14 @@ async function fetchServerInfo() {
   try {
     const res = await fetch('/api/info');
     const data = await res.json();
-    hostLanIpText.textContent = `${data.localIp}:${data.port}`;
+    hostLanIpText.textContent = data.isCloud ? data.localIp : `${data.localIp}:${data.port}`;
     listenUrlDisplay.textContent = data.listenUrl;
     qrCodeImg.src = data.qrCodeDataUrl;
     const ifaceBadge = document.getElementById('activeInterfaceBadge');
     if (ifaceBadge && data.interfaceName) {
-      ifaceBadge.textContent = `Active Interface: ${data.interfaceName} (${data.localIp})`;
+      ifaceBadge.textContent = data.isCloud
+        ? `Deployment: ${data.interfaceName}`
+        : `Active Interface: ${data.interfaceName} (${data.localIp})`;
     }
     const openBtn = document.getElementById('btnOpenListenTab');
     if (openBtn) openBtn.href = data.listenUrl;

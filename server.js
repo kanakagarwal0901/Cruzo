@@ -69,10 +69,23 @@ function getLocalIpAddress(preferredIp) {
   return '127.0.0.1';
 }
 
+// Detect if running in cloud (Render, Heroku, Railway, or public domain)
+function isCloudDeployment(reqOrSocket) {
+  if (process.env.RENDER || process.env.RENDER_EXTERNAL_URL) return true;
+  if (process.env.RAILWAY_STATIC_URL || process.env.HEROKU_APP_NAME) return true;
+  if (!reqOrSocket) return false;
+
+  const headers = reqOrSocket.headers || (reqOrSocket.handshake && reqOrSocket.handshake.headers) || {};
+  const forwardedHost = headers['x-forwarded-host'] || headers.host || '';
+  const hostOnly = forwardedHost.split(':')[0].toLowerCase();
+  if (!hostOnly || hostOnly === 'localhost' || hostOnly === '127.0.0.1') return false;
+  const isPrivateIp = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.|127\.|localhost)/.test(hostOnly);
+  return !isPrivateIp;
+}
+
 // Utility: Clean client IPv4 from IPv4-mapped IPv6 (::ffff:192.168.x.x)
 function cleanClientIp(rawIp) {
-  const currentIp = getLocalIpAddress();
-  if (!rawIp) return currentIp;
+  if (!rawIp) return '127.0.0.1';
   if (rawIp.startsWith('::ffff:')) return rawIp.replace('::ffff:', '');
   if (rawIp === '::1') return '127.0.0.1';
   return rawIp;
@@ -134,17 +147,32 @@ app.get('/guide', (req, res) => {
   res.redirect('/?guide=1');
 });
 
-// API route to provide connection metadata and minimalist QR code (always dynamic IP)
+// API route to provide connection metadata and minimalist QR code (always dynamic IP / domain)
 app.get('/api/info', async (req, res) => {
   try {
-    const hostHeader = (req.headers.host || '').split(':')[0];
-    const requestedIp = req.query.ip || (/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(hostHeader) ? hostHeader : null);
-    const currentIp = getLocalIpAddress(requestedIp);
-    const allInterfaces = getNetworkInterfaces();
-    const activeIface = allInterfaces.find(i => i.address === currentIp);
+    const isCloud = isCloudDeployment(req);
+    let listenUrl, hostUrl, displayAddress, interfaceName;
 
-    const listenUrl = `http://${currentIp}:${PORT}/listen`;
-    const hostUrl = `http://localhost:${PORT}/host`;
+    if (isCloud) {
+      const proto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+      const host = req.headers['x-forwarded-host'] || req.headers.host || (process.env.RENDER_EXTERNAL_URL ? process.env.RENDER_EXTERNAL_URL.replace(/^https?:\/\//, '') : 'cruzo.onrender.com');
+      listenUrl = `${proto}://${host}/listen`;
+      hostUrl = `${proto}://${host}/host`;
+      displayAddress = host;
+      interfaceName = 'Cloud (Render HTTPS)';
+    } else {
+      const hostHeader = (req.headers.host || '').split(':')[0];
+      const requestedIp = req.query.ip || (/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(hostHeader) ? hostHeader : null);
+      const currentIp = getLocalIpAddress(requestedIp);
+      const allInterfaces = getNetworkInterfaces();
+      const activeIface = allInterfaces.find(i => i.address === currentIp);
+
+      listenUrl = `http://${currentIp}:${PORT}/listen`;
+      hostUrl = `http://localhost:${PORT}/host`;
+      displayAddress = currentIp;
+      interfaceName = activeIface ? activeIface.name : 'LAN';
+    }
+
     const qrCodeDataUrl = await QRCode.toDataURL(listenUrl, {
       errorCorrectionLevel: 'M',
       margin: 1,
@@ -156,13 +184,14 @@ app.get('/api/info', async (req, res) => {
     });
 
     res.json({
-      localIp: currentIp,
-      interfaceName: activeIface ? activeIface.name : 'LAN',
-      allInterfaces: allInterfaces.map(i => ({ name: i.name, address: i.address })),
+      isCloud,
+      localIp: displayAddress,
+      interfaceName,
       port: PORT,
       listenUrl,
       hostUrl,
       qrCodeDataUrl,
+      allInterfaces: getNetworkInterfaces().map(i => ({ name: i.name, address: i.address })),
       generatedAt: new Date().toISOString()
     });
   } catch (error) {
@@ -236,10 +265,10 @@ io.on('connection', (socket) => {
   // 3. WebRTC Offer (Host -> Watcher)
   socket.on('offer', (data) => {
     if (data && data.targetId && data.sdp) {
-      const currentIp = getLocalIpAddress();
-      const sanitizedSdp = {
+      const isCloud = isCloudDeployment(socket);
+      const sanitizedSdp = isCloud ? data.sdp : {
         ...data.sdp,
-        sdp: deanonymizeSdp(data.sdp.sdp, currentIp)
+        sdp: deanonymizeSdp(data.sdp.sdp, getLocalIpAddress())
       };
 
       io.to(data.targetId).emit('offer', {
@@ -252,10 +281,10 @@ io.on('connection', (socket) => {
   // 4. WebRTC Answer (Watcher -> Host)
   socket.on('answer', (data) => {
     if (broadcasterSocketId && data && data.sdp) {
-      const watcherIp = cleanClientIp(socket.handshake.address);
-      const sanitizedSdp = {
+      const isCloud = isCloudDeployment(socket);
+      const sanitizedSdp = isCloud ? data.sdp : {
         ...data.sdp,
-        sdp: deanonymizeSdp(data.sdp.sdp, watcherIp)
+        sdp: deanonymizeSdp(data.sdp.sdp, cleanClientIp(socket.handshake.address))
       };
 
       io.to(broadcasterSocketId).emit('answer', {
@@ -265,25 +294,34 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 5. ICE Candidate Exchange with mDNS De-Anonymization
+  // 5. ICE Candidate Exchange
   socket.on('ice-candidate', (data) => {
     if (!data || !data.targetId || !data.candidate) return;
+    const isCloud = isCloudDeployment(socket);
 
-    if (socket.id === broadcasterSocketId) {
-      const currentIp = getLocalIpAddress();
-      const sanitizedCandidate = deanonymizeCandidate(data.candidate, currentIp);
+    if (isCloud) {
+      // In cloud mode, forward candidates directly so STUN can negotiate peer connection
       io.to(data.targetId).emit('ice-candidate', {
         senderId: socket.id,
-        candidate: sanitizedCandidate
+        candidate: data.candidate
       });
     } else {
-      const watcherIp = cleanClientIp(socket.handshake.address);
-      const sanitizedCandidate = deanonymizeCandidate(data.candidate, watcherIp);
-      if (broadcasterSocketId) {
+      if (socket.id === broadcasterSocketId) {
+        const currentIp = getLocalIpAddress();
+        const sanitizedCandidate = deanonymizeCandidate(data.candidate, currentIp);
         io.to(data.targetId).emit('ice-candidate', {
           senderId: socket.id,
           candidate: sanitizedCandidate
         });
+      } else {
+        const watcherIp = cleanClientIp(socket.handshake.address);
+        const sanitizedCandidate = deanonymizeCandidate(data.candidate, watcherIp);
+        if (broadcasterSocketId) {
+          io.to(data.targetId).emit('ice-candidate', {
+            senderId: socket.id,
+            candidate: sanitizedCandidate
+          });
+        }
       }
     }
   });
