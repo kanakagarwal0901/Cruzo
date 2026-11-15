@@ -149,15 +149,23 @@
       applyTheme(current);
     });
 
-    // Fetch LAN info
-    fetch('/api/info')
-      .then(res => res.json())
-      .then(data => {
-        document.getElementById('lanIpBadge').textContent = `${data.localIp}:${data.port}`;
-      })
-      .catch(() => {
-        document.getElementById('lanIpBadge').textContent = 'Localhost';
-      });
+    // Fetch LAN info dynamically
+    function refreshLanInfo() {
+      fetch('/api/info')
+        .then(res => res.json())
+        .then(data => {
+          const badge = document.getElementById('lanIpBadge');
+          if (badge && data.localIp) {
+            badge.textContent = `${data.localIp}:${data.port}`;
+          }
+        })
+        .catch(() => {
+          const badge = document.getElementById('lanIpBadge');
+          if (badge) badge.textContent = 'Localhost';
+        });
+    }
+    refreshLanInfo();
+    setInterval(refreshLanInfo, 3000);
   </script>
   <!-- Apple Frosted Glass "How to Use" Modal -->
   <div id="howToUseModal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modalTitle">

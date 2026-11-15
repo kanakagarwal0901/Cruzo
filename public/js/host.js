@@ -48,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupUIEventListeners();
   setupCanvas(hostVisualizerCanvas);
   window.addEventListener('resize', () => setupCanvas(hostVisualizerCanvas));
-  setInterval(fetchServerInfo, 8000); // Periodically refresh LAN IP in case DHCP lease renews
+  setInterval(fetchServerInfo, 3000); // Periodically refresh LAN IP and QR code every 3 seconds
 });
 
 // Resume AudioContext on first user interaction
@@ -162,6 +162,8 @@ async function fetchServerInfo() {
     hostLanIpText.textContent = `${data.localIp}:${data.port}`;
     listenUrlDisplay.textContent = data.listenUrl;
     qrCodeImg.src = data.qrCodeDataUrl;
+    const openBtn = document.getElementById('btnOpenListenTab');
+    if (openBtn) openBtn.href = data.listenUrl;
   } catch (err) {
     console.error('[Cruzo] Error fetching server info:', err);
     hostLanIpText.textContent = 'LAN IP Error';
@@ -694,18 +696,22 @@ function updatePeerStateBadge(watcherId, state) {
   if (!badge) return;
 
   const normalized = (state || '').toLowerCase();
-  badge.textContent = normalized.toUpperCase();
 
   if (normalized === 'connected' || normalized === 'completed') {
+    badge.textContent = 'CONNECTED';
     badge.className = 'status-badge live';
     badge.style.fontSize = '0.65rem';
   } else if (normalized === 'checking') {
+    badge.textContent = 'CHECKING';
     badge.className = 'status-badge';
     badge.style.fontSize = '0.65rem';
   } else if (normalized === 'failed' || normalized === 'disconnected') {
-    badge.className = 'status-badge text-tertiary';
+    // If direct WebRTC UDP is blocked by network, WebSocket LAN audio relay is active
+    badge.textContent = 'LAN RELAY';
+    badge.className = 'status-badge live';
     badge.style.fontSize = '0.65rem';
   } else {
+    badge.textContent = normalized.toUpperCase() || 'ONLINE';
     badge.className = 'status-badge';
     badge.style.fontSize = '0.65rem';
   }

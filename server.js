@@ -38,6 +38,10 @@ function getLocalIpAddress() {
     }
   }
 
+  // 0. Prioritize Windows Mobile Hotspot if active (192.168.137.x)
+  const hotspotIface = candidates.find(c => c.address.startsWith('192.168.137.'));
+  if (hotspotIface) return hotspotIface.address;
+
   // 1. Non-virtual private network IP (Physical Wi-Fi / Ethernet)
   const physicalPrivate = candidates.find(c => !c.isVirtual && c.isPrivate);
   if (physicalPrivate) return physicalPrivate.address;
@@ -85,6 +89,15 @@ function deanonymizeSdp(sdpStr, realIp) {
   res = res.replace(/(c=IN IP4\s+)(?:0\.0\.0\.0|127\.0\.0\.1)/g, (match, prefix) => prefix + realIp);
   return res;
 }
+
+// Log incoming client HTTP connections
+app.use((req, res, next) => {
+  if (req.path !== '/api/info') {
+    const ip = cleanClientIp(req.ip || req.socket.remoteAddress);
+    console.log(`[Cruzo HTTP] ${req.method} ${req.path} from ${ip}`);
+  }
+  next();
+});
 
 // Serve static frontend assets
 app.use(express.static(path.join(__dirname, 'public')));

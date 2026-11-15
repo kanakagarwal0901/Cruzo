@@ -172,23 +172,27 @@ function initSocket() {
   });
 
   socket.on('disconnect', () => {
-    updateClientStatus('OFFLINE', false);
+    updateClientStatus('RECONNECTING...', false);
     if (pingInterval) clearInterval(pingInterval);
     setTimeout(() => {
       if (!socket || !socket.connected) {
         handleHostDisconnected('Connection lost with Host PC');
       }
-    }, 2500);
+    }, 12000);
   });
 }
 
 function startPingHeartbeat() {
   if (pingInterval) clearInterval(pingInterval);
+  // Send immediate initial ping
+  if (socket && socket.connected) {
+    socket.emit('telemetry-ping', { timestamp: Date.now() });
+  }
   pingInterval = setInterval(() => {
     if (socket && socket.connected) {
       socket.emit('telemetry-ping', { timestamp: Date.now() });
     }
-  }, 2500);
+  }, 2000);
 }
 
 // -----------------------------------------------------------------------------
