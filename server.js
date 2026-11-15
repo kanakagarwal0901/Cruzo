@@ -17,9 +17,10 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 
 // Resolve best local LAN IPv4 address (Physical Wi-Fi / Ethernet)
-function getLocalIpAddress() {
+// Dynamically resolve all active physical IPv4 network interfaces
+function getNetworkInterfaces() {
   const interfaces = os.networkInterfaces();
-  const candidates = [];
+  const list = [];
 
   for (const name of Object.keys(interfaces)) {
     const isVirtual = /vethernet|virtualbox|vmware|wsl|loopback|pseudo|hyper-v/i.test(name);
@@ -27,20 +28,32 @@ function getLocalIpAddress() {
       const isIPv4 = iface.family === 'IPv4' || iface.family === 4;
       const isLinkLocal = iface.address.startsWith('169.254.');
       if (isIPv4 && !iface.internal && !isLinkLocal) {
-        const isPrivate = /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(iface.address);
-        candidates.push({
+        list.push({
           name,
           address: iface.address,
           isVirtual,
-          isPrivate
+          isPrivate: /^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(iface.address)
         });
       }
     }
   }
 
+  return list;
+}
+
+// Dynamically resolve best local LAN IPv4 address (Physical Wi-Fi / Ethernet / Hotspot)
+function getLocalIpAddress(preferredIp) {
+  const candidates = getNetworkInterfaces();
+
+  // If a specific valid interface IP was requested/preferred and exists
+  if (preferredIp) {
+    const match = candidates.find(c => c.address === preferredIp);
+    if (match) return match.address;
+  }
+
   // 0. Prioritize Windows Mobile Hotspot if active (192.168.137.x)
-  const hotspotIface = candidates.find(c => c.address.startsWith('192.168.137.'));
-  if (hotspotIface) return hotspotIface.address;
+  const hotspot = candidates.find(c => c.address.startsWith('192.168.137.'));
+  if (hotspot) return hotspot.address;
 
   // 1. Non-virtual private network IP (Physical Wi-Fi / Ethernet)
   const physicalPrivate = candidates.find(c => !c.isVirtual && c.isPrivate);
@@ -124,7 +137,12 @@ app.get('/guide', (req, res) => {
 // API route to provide connection metadata and minimalist QR code (always dynamic IP)
 app.get('/api/info', async (req, res) => {
   try {
-    const currentIp = getLocalIpAddress();
+    const hostHeader = (req.headers.host || '').split(':')[0];
+    const requestedIp = req.query.ip || (/^(192\.168\.|10\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(hostHeader) ? hostHeader : null);
+    const currentIp = getLocalIpAddress(requestedIp);
+    const allInterfaces = getNetworkInterfaces();
+    const activeIface = allInterfaces.find(i => i.address === currentIp);
+
     const listenUrl = `http://${currentIp}:${PORT}/listen`;
     const hostUrl = `http://localhost:${PORT}/host`;
     const qrCodeDataUrl = await QRCode.toDataURL(listenUrl, {
@@ -139,10 +157,13 @@ app.get('/api/info', async (req, res) => {
 
     res.json({
       localIp: currentIp,
+      interfaceName: activeIface ? activeIface.name : 'LAN',
+      allInterfaces: allInterfaces.map(i => ({ name: i.name, address: i.address })),
       port: PORT,
       listenUrl,
       hostUrl,
-      qrCodeDataUrl
+      qrCodeDataUrl,
+      generatedAt: new Date().toISOString()
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate QR code', details: error.message });

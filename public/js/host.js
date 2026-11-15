@@ -162,6 +162,10 @@ async function fetchServerInfo() {
     hostLanIpText.textContent = `${data.localIp}:${data.port}`;
     listenUrlDisplay.textContent = data.listenUrl;
     qrCodeImg.src = data.qrCodeDataUrl;
+    const ifaceBadge = document.getElementById('activeInterfaceBadge');
+    if (ifaceBadge && data.interfaceName) {
+      ifaceBadge.textContent = `Active Interface: ${data.interfaceName} (${data.localIp})`;
+    }
     const openBtn = document.getElementById('btnOpenListenTab');
     if (openBtn) openBtn.href = data.listenUrl;
   } catch (err) {
