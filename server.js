@@ -52,11 +52,10 @@ function getLocalIpAddress() {
   return '127.0.0.1';
 }
 
-const LOCAL_IP = getLocalIpAddress();
-
 // Utility: Clean client IPv4 from IPv4-mapped IPv6 (::ffff:192.168.x.x)
 function cleanClientIp(rawIp) {
-  if (!rawIp) return LOCAL_IP;
+  const currentIp = getLocalIpAddress();
+  if (!rawIp) return currentIp;
   if (rawIp.startsWith('::ffff:')) return rawIp.replace('::ffff:', '');
   if (rawIp === '::1') return '127.0.0.1';
   return rawIp;
@@ -109,10 +108,11 @@ app.get('/guide', (req, res) => {
   res.redirect('/?guide=1');
 });
 
-// API route to provide connection metadata and minimalist QR code
+// API route to provide connection metadata and minimalist QR code (always dynamic IP)
 app.get('/api/info', async (req, res) => {
   try {
-    const listenUrl = `http://${LOCAL_IP}:${PORT}/listen`;
+    const currentIp = getLocalIpAddress();
+    const listenUrl = `http://${currentIp}:${PORT}/listen`;
     const hostUrl = `http://localhost:${PORT}/host`;
     const qrCodeDataUrl = await QRCode.toDataURL(listenUrl, {
       errorCorrectionLevel: 'M',
@@ -125,7 +125,7 @@ app.get('/api/info', async (req, res) => {
     });
 
     res.json({
-      localIp: LOCAL_IP,
+      localIp: currentIp,
       port: PORT,
       listenUrl,
       hostUrl,
@@ -138,6 +138,7 @@ app.get('/api/info', async (req, res) => {
 
 // Signaling State
 let broadcasterSocketId = null;
+let isBroadcastingActive = false;
 const connectedWatchers = new Map(); // socketId -> { id, deviceName, ip, userAgent, joinedAt }
 
 io.on('connection', (socket) => {
@@ -146,7 +147,8 @@ io.on('connection', (socket) => {
   // 1. Broadcaster (Host PC) Registration
   socket.on('broadcaster-register', () => {
     broadcasterSocketId = socket.id;
-    console.log(`[Cruzo] Broadcaster registered: ${socket.id} (LAN IP: ${LOCAL_IP})`);
+    const currentIp = getLocalIpAddress();
+    console.log(`[Cruzo] Broadcaster registered: ${socket.id} (LAN IP: ${currentIp})`);
 
     // Send currently connected watchers to broadcaster
     socket.emit('broadcaster-registered', {
@@ -157,6 +159,19 @@ io.on('connection', (socket) => {
 
     // Notify all currently waiting watchers that broadcaster is online
     socket.broadcast.emit('broadcaster-available');
+  });
+
+  // Track when broadcaster starts / stops screen/system audio broadcast
+  socket.on('broadcaster-started', () => {
+    isBroadcastingActive = true;
+    console.log('[Cruzo] Broadcaster audio stream active');
+    socket.broadcast.emit('broadcaster-started');
+  });
+
+  socket.on('broadcaster-stopped', () => {
+    isBroadcastingActive = false;
+    console.log('[Cruzo] Broadcaster audio stream stopped');
+    socket.broadcast.emit('broadcaster-stopped');
   });
 
   // 2. Watcher (Mobile Client) Registration
@@ -171,10 +186,11 @@ io.on('connection', (socket) => {
     connectedWatchers.set(socket.id, watcherInfo);
     console.log(`[Cruzo] Watcher joined: ${watcherInfo.deviceName} (${socket.id}) from IP ${clientIp}`);
 
-    // Let the watcher know if broadcaster is active
+    // Let the watcher know if broadcaster is active and streaming
     socket.emit('broadcaster-status', {
       active: !!broadcasterSocketId,
-      broadcasterId: broadcasterSocketId
+      broadcasterId: broadcasterSocketId,
+      isBroadcasting: isBroadcastingActive
     });
 
     // Notify broadcaster that a new watcher has joined
@@ -186,9 +202,10 @@ io.on('connection', (socket) => {
   // 3. WebRTC Offer (Host -> Watcher)
   socket.on('offer', (data) => {
     if (data && data.targetId && data.sdp) {
+      const currentIp = getLocalIpAddress();
       const sanitizedSdp = {
         ...data.sdp,
-        sdp: deanonymizeSdp(data.sdp.sdp, LOCAL_IP)
+        sdp: deanonymizeSdp(data.sdp.sdp, currentIp)
       };
 
       io.to(data.targetId).emit('offer', {
@@ -219,7 +236,8 @@ io.on('connection', (socket) => {
     if (!data || !data.targetId || !data.candidate) return;
 
     if (socket.id === broadcasterSocketId) {
-      const sanitizedCandidate = deanonymizeCandidate(data.candidate, LOCAL_IP);
+      const currentIp = getLocalIpAddress();
+      const sanitizedCandidate = deanonymizeCandidate(data.candidate, currentIp);
       io.to(data.targetId).emit('ice-candidate', {
         senderId: socket.id,
         candidate: sanitizedCandidate
@@ -272,6 +290,7 @@ io.on('connection', (socket) => {
     if (socket.id === broadcasterSocketId) {
       console.log(`[Cruzo] Broadcaster disconnected (${socket.id})`);
       broadcasterSocketId = null;
+      isBroadcastingActive = false;
       socket.broadcast.emit('broadcaster-disconnected');
     } else if (connectedWatchers.has(socket.id)) {
       const info = connectedWatchers.get(socket.id);
@@ -285,12 +304,13 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
+  const currentIp = getLocalIpAddress();
   console.log(`\n======================================================`);
   console.log(` Cruzo — Multi-Device Wireless Audio Matrix `);
   console.log(`======================================================`);
   console.log(` Gateway Home:      http://localhost:${PORT}/`);
   console.log(` Host PC Console:   http://localhost:${PORT}/host`);
-  console.log(` Mobile Listener:   http://${LOCAL_IP}:${PORT}/listen`);
-  console.log(` Local Subnet IP:   ${LOCAL_IP}`);
+  console.log(` Mobile Listener:   http://${currentIp}:${PORT}/listen`);
+  console.log(` Local Subnet IP:   ${currentIp}`);
   console.log(`======================================================\n`);
 });

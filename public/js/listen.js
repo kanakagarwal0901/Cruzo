@@ -78,10 +78,18 @@ function initSocket() {
 
   socket.on('broadcaster-status', (status) => {
     if (status.active) {
-      if (!isAudioUnlocked) {
-        updateClientStatus('HOST READY • TAP UNMUTE', true);
+      if (status.isBroadcasting) {
+        if (!isAudioUnlocked) {
+          updateClientStatus('HOST IS LIVE • TAP TO LISTEN', true);
+        } else {
+          updateClientStatus('HOST ONLINE', true);
+        }
       } else {
-        updateClientStatus('HOST ONLINE', true);
+        if (!isAudioUnlocked) {
+          updateClientStatus('HOST READY • TAP UNMUTE', true);
+        } else {
+          updateClientStatus('WAITING FOR BROADCAST', false);
+        }
       }
     } else {
       updateClientStatus('WAITING FOR HOST', false);
@@ -98,6 +106,20 @@ function initSocket() {
       deviceName: detectDeviceName(),
       userAgent: navigator.userAgent
     });
+  });
+
+  socket.on('broadcaster-started', () => {
+    console.log('[Cruzo] Broadcaster started stream');
+    if (!isAudioUnlocked) {
+      updateClientStatus('HOST IS LIVE • TAP TO LISTEN', true);
+    } else {
+      updateClientStatus('STREAMING', true);
+    }
+  });
+
+  socket.on('broadcaster-stopped', () => {
+    console.log('[Cruzo] Broadcaster stopped stream');
+    updateClientStatus('BROADCAST PAUSED BY HOST', false);
   });
 
   socket.on('broadcaster-disconnected', () => {
@@ -207,9 +229,12 @@ async function handleWebRtcOffer(data) {
       audioModeBadge.textContent = 'WEBRTC UDP (DIRECT LAN)';
     } else if (state === 'checking') {
       updateClientStatus('CONNECTING...', false);
-    } else if (state === 'failed') {
-      console.warn('[Cruzo] WebRTC UDP failed, switching to relay');
-      updateClientStatus('CONNECTING RELAY', false);
+    } else if (state === 'failed' || state === 'disconnected') {
+      console.warn('[Cruzo] WebRTC UDP state:', state, '- fallback active via WebSocket LAN relay');
+      audioModeBadge.textContent = 'WEBSOCKET LAN RELAY';
+      if (isAudioUnlocked) {
+        updateClientStatus('STREAMING (LAN RELAY)', true);
+      }
     }
   };
 
@@ -219,7 +244,8 @@ async function handleWebRtcOffer(data) {
     if (state === 'connected') {
       updateClientStatus('STREAMING', true);
     } else if (state === 'failed' || state === 'closed') {
-      handleHostDisconnected('Audio stream disconnected');
+      console.warn('[Cruzo] WebRTC connectionState:', state, '- falling back to LAN relay mode');
+      audioModeBadge.textContent = 'WEBSOCKET LAN RELAY';
     }
   };
 
@@ -276,12 +302,81 @@ async function handleWebRtcOffer(data) {
 function closePeerConnection() {
   if (peerConnection) {
     try {
+      peerConnection.onconnectionstatechange = null;
+      peerConnection.oniceconnectionstatechange = null;
+      peerConnection.onicecandidate = null;
+      peerConnection.ontrack = null;
       peerConnection.close();
     } catch (e) {}
     peerConnection = null;
   }
   isRemoteDescriptionSet = false;
   pendingIceCandidates = [];
+}
+
+// -----------------------------------------------------------------------------
+// Fallback WebSocket LAN Audio Relay Player
+// -----------------------------------------------------------------------------
+let relayScheduledTime = 0;
+let relayGainNode = null;
+
+function playFallbackAudioChunk(chunkData) {
+  // If WebRTC is actively delivering audio directly over UDP, don't duplicate playout
+  if (peerConnection && (peerConnection.iceConnectionState === 'connected' || peerConnection.iceConnectionState === 'completed')) {
+    return;
+  }
+
+  ensureAudioContext();
+  if (audioContext.state === 'suspended') {
+    audioContext.resume();
+  }
+
+  try {
+    const int16 = new Int16Array(chunkData);
+    const numSamples = int16.length / 2; // Stereo 2-channel
+    if (numSamples <= 0) return;
+
+    const audioBuf = audioContext.createBuffer(2, numSamples, 48000);
+    const leftChan = audioBuf.getChannelData(0);
+    const rightChan = audioBuf.getChannelData(1);
+
+    for (let i = 0; i < numSamples; i++) {
+      leftChan[i] = int16[i * 2] / 32768.0;
+      rightChan[i] = int16[i * 2 + 1] / 32768.0;
+    }
+
+    const source = audioContext.createBufferSource();
+    source.buffer = audioBuf;
+
+    if (!relayGainNode) {
+      relayGainNode = audioContext.createGain();
+      if (!analyserNode) {
+        analyserNode = audioContext.createAnalyser();
+        analyserNode.fftSize = 128;
+        analyserNode.smoothingTimeConstant = 0.75;
+      }
+      relayGainNode.connect(analyserNode);
+      analyserNode.connect(audioContext.destination);
+      startVisualizerLoop();
+    }
+
+    const effectiveVolume = isMuted ? 0 : currentVolumeMultiplier;
+    relayGainNode.gain.setValueAtTime(effectiveVolume, audioContext.currentTime);
+
+    const now = audioContext.currentTime;
+    if (relayScheduledTime < now) {
+      relayScheduledTime = now + 0.035; // 35ms buffer for seamless jitter-free playback
+    }
+
+    source.connect(relayGainNode);
+    source.start(relayScheduledTime);
+    relayScheduledTime += audioBuf.duration;
+
+    audioModeBadge.textContent = 'WEBSOCKET LAN RELAY';
+    updateClientStatus('STREAMING (LAN RELAY)', true);
+  } catch (err) {
+    console.warn('[Cruzo] Error playing audio chunk:', err);
+  }
 }
 
 // -----------------------------------------------------------------------------

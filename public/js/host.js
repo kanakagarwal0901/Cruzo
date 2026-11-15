@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
   setupUIEventListeners();
   setupCanvas(hostVisualizerCanvas);
   window.addEventListener('resize', () => setupCanvas(hostVisualizerCanvas));
+  setInterval(fetchServerInfo, 8000); // Periodically refresh LAN IP in case DHCP lease renews
 });
 
 // Resume AudioContext on first user interaction
@@ -56,6 +57,12 @@ document.addEventListener('click', () => {
     audioContext.resume();
   }
 }, { once: true });
+
+// Global Audio Nodes
+let busGain = null;
+let relayProcessor = null;
+let relayMuteGain = null;
+let isBroadcastingActive = false;
 
 // -----------------------------------------------------------------------------
 // 1. Audio Master Bus Initialization
@@ -71,18 +78,67 @@ function initAudioMasterBus() {
     masterDest = audioContext.createMediaStreamDestination();
     broadcastStream = masterDest.stream;
 
-    // Attach inaudible carrier oscillator to keep stream active
-    const silenceOsc = audioContext.createOscillator();
-    const silenceGain = audioContext.createGain();
-    silenceGain.gain.value = 0.00001;
-    silenceOsc.connect(silenceGain);
-    silenceGain.connect(masterDest);
-    silenceOsc.start();
+    // Central Audio Bus
+    busGain = audioContext.createGain();
+    busGain.gain.value = 1.0;
+    busGain.connect(masterDest);
 
     // Analyser Node for visualizer
     analyserNode = audioContext.createAnalyser();
     analyserNode.fftSize = 256;
     analyserNode.smoothingTimeConstant = 0.8;
+    busGain.connect(analyserNode);
+
+    // Attach inaudible carrier oscillator to busGain to keep WebRTC track alive
+    const silenceOsc = audioContext.createOscillator();
+    const silenceGain = audioContext.createGain();
+    silenceGain.gain.value = 0.00001;
+    silenceOsc.connect(silenceGain);
+    silenceGain.connect(busGain);
+    silenceOsc.start();
+
+    initAudioRelayStream();
+  }
+}
+
+function initAudioRelayStream() {
+  if (relayProcessor || !audioContext || !busGain) return;
+
+  try {
+    // 2048 samples at 48000Hz stereo = ~42ms audio packet
+    relayProcessor = audioContext.createScriptProcessor(2048, 2, 2);
+    
+    relayProcessor.onaudioprocess = (e) => {
+      if (!isBroadcastingActive && !isClapperRunning) return;
+      if (!socket || !socket.connected) return;
+
+      const left = e.inputBuffer.getChannelData(0);
+      const right = e.inputBuffer.getChannelData(1);
+      const len = left.length;
+
+      // Convert Float32Array to 16-bit PCM ArrayBuffer
+      const int16 = new Int16Array(len * 2);
+      for (let i = 0; i < len; i++) {
+        const sL = Math.max(-1, Math.min(1, left[i]));
+        const sR = Math.max(-1, Math.min(1, right[i]));
+        int16[i * 2] = sL < 0 ? sL * 0x8000 : sL * 0x7FFF;
+        int16[i * 2 + 1] = sR < 0 ? sR * 0x8000 : sR * 0x7FFF;
+      }
+
+      socket.emit('stream-audio-chunk', int16.buffer);
+    };
+
+    busGain.connect(relayProcessor);
+
+    // Connect through 0-gain node so ScriptProcessor is clocked without echoing to PC speakers
+    relayMuteGain = audioContext.createGain();
+    relayMuteGain.gain.value = 0;
+    relayProcessor.connect(relayMuteGain);
+    relayMuteGain.connect(audioContext.destination);
+
+    console.log('[Cruzo] WebSocket LAN audio relay processor active');
+  } catch (err) {
+    console.warn('[Cruzo] Audio relay processor init error:', err);
   }
 }
 
@@ -338,7 +394,7 @@ async function startDesktopBroadcast() {
       desktopSourceNode.disconnect();
     }
     desktopSourceNode = audioContext.createMediaStreamSource(desktopRawStream);
-    desktopSourceNode.connect(analyserNode);
+    desktopSourceNode.connect(busGain); // Feeds master destination for WebRTC, visualizer analyser, and WebSocket LAN relay
 
     // Hot-swap native WASAPI system audio track onto all active peer connections
     const newTrack = audioTracks[0];
@@ -356,6 +412,12 @@ async function startDesktopBroadcast() {
       stopDesktopBroadcast();
     };
 
+    isBroadcastingActive = true;
+    initAudioRelayStream();
+    if (socket && socket.connected) {
+      socket.emit('broadcaster-started');
+    }
+
     startVisualizerLoop();
     updateHostStatus('BROADCASTING', true);
     btnStartBroadcast.disabled = true;
@@ -369,6 +431,11 @@ async function startDesktopBroadcast() {
 }
 
 function stopDesktopBroadcast() {
+  isBroadcastingActive = false;
+  if (socket && socket.connected) {
+    socket.emit('broadcaster-stopped');
+  }
+
   if (desktopSourceNode) {
     desktopSourceNode.disconnect();
     desktopSourceNode = null;
@@ -418,8 +485,7 @@ function playAudioTestChime() {
     gain.gain.exponentialRampToValueAtTime(0.001, now + index * 0.18 + 0.35);
 
     osc.connect(gain);
-    gain.connect(masterDest);
-    gain.connect(analyserNode);
+    gain.connect(busGain);
     gain.connect(audioContext.destination);
 
     osc.start(now + index * 0.18);
@@ -477,8 +543,7 @@ function triggerClapperPulse() {
       gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.08);
 
       osc.connect(gain);
-      gain.connect(masterDest);
-      gain.connect(analyserNode);
+      gain.connect(busGain);
       gain.connect(audioContext.destination);
 
       osc.start();
